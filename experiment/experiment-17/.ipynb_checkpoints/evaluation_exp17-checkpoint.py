@@ -1,10 +1,11 @@
 # Experiment no.17 evaluation
 
 # Constants
-exp_no = 'exp17'
-path_root = '/home/hwkang/jupyter/root/'
-path_dataset = path_root + 'dataset/'
-path_result = path_root + 'result/'
+exp_no = 'exp17' # NOTICE: Change before running this script!
+username = 'hwkang' # NOTICE: Change before running this script!
+path_root = f'/home/{username}/jupyter/root/' # NOTICE: Change before running this script!
+path_dataset = path_root + 'dataset/' # NOTICE: Change before running this script! 
+path_result = path_root + 'result/' # NOTICE: Change before running this script!
 path_result_root = path_result + exp_no + '/'
 path_result_image = path_result_root + 'image/'
 path_result_model = path_result_root + 'model/'
@@ -23,6 +24,7 @@ sys.path.append(path_result)
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.optim.lr_scheduler import ReduceLROnPlateau #학습률 스케줄링
 import torch.nn.functional as F
 from torch.utils.data import Dataset, random_split
 from torchvision import datasets, transforms
@@ -41,11 +43,10 @@ from utility.preprocess import *
 from utility.synthesize import *
 from utility.visualize import *
 from model.SimpleCNN import *
+from model.LearningUtils import *
 
 def main(args):
-    if args.verbose:
-        print("Verbose mode is enabled.")
-        
+    
     # Data preprocessing
     transform = transforms.Compose([transforms.ToTensor()])
     
@@ -74,13 +75,13 @@ def main(args):
     if( args.pretrained is None ):
         train_dataset = get_subset(train_dataset, args.train_dataset_ratio)
         train_loader = DataLoader(dataset=train_dataset, batch_size=1, shuffle=False)
-        multi_noised_train_dataset = MultiNoisedDataset(train_loader)
+        multi_noised_train_dataset = MultiNoisedDataset(train_loader, min_intensity=args.min_intensity)
         multi_noised_train_loader = DataLoader(multi_noised_train_dataset, batch_size=args.batch_size, shuffle=True)
 
     # On test dataset 
     test_dataset = get_subset(test_dataset, args.test_dataset_ratio)
     test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False)
-    multi_noised_test_dataset = MultiNoisedDataset(test_loader)
+    multi_noised_test_dataset = MultiNoisedDataset(test_loader, min_intensity=args.min_intensity)
     multi_noised_test_loader = DataLoader(multi_noised_test_dataset, batch_size=args.batch_size, shuffle=False)
 
     # Sanity check
@@ -99,6 +100,9 @@ def main(args):
     # Setup record variables
     epoch_loss_rec = []
     max_epoch_loss = math.inf
+
+    #학습률 스케줄링
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
     
     # Training loop
     if( args.pretrained is None ):
@@ -134,14 +138,29 @@ def main(args):
                     best_model_state = model.state_dict()
                     best_epoch_idx = epoch + 1
                     max_epoch_loss = epoch_loss
+
+                # 학습률 감소 스케줄러에 검증 손실 전달
+                if args.lr_scheduler:
+                    scheduler.step(epoch_loss)
                     
+                    # 학습률 확인 및 출력
+                    if args.verbose:
+                        print(f"Learning rate after epoch {epoch + 1}: {scheduler.get_last_lr()[0]}")
+            
                 if( epoch % 10 == 9 ):
                     print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss:.4f}")
                 
                 epoch_loss_rec.append(epoch_loss)
 
+                if args.early_stopping:
+                    early_stopping(epoch_loss, model)
+                    if early_stopping.early_stop:
+                        print(f"Early stopping at epoch {epoch+1} (epoch loss:{epoch_loss:.4f})")
+                        break
+
         # Load model parameters at best epoch loss
-        print(f'Load model state at best epoch loss [{best_epoch_idx}]')
+        if args.verbose:
+            print(f'Load model state at best epoch loss [{best_epoch_idx}]')
         model.load_state_dict(best_model_state)
         visualize_epoch_loss(pilot=False, epoch_loss=epoch_loss_rec, file_path=loss_file_path)
 
@@ -182,31 +201,38 @@ def main(args):
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
-
-    # Sanity check; directory existence
-    ensure_directory(path_result_meta)
-    ensure_directory(path_result_image)
-    ensure_directory(path_result_model)
-    ensure_directory(path_result_loss)
-    ensure_directory(path_result_accuracy)
     
     # Command-line arguments
     parser.add_argument('-d', '--dataset_type', type=str, required=False, default='cifar10', choices=['cifar10','cifar100'])
     parser.add_argument('-n', '--noise_type', type=str, required=False, default='multi', choices=['gaussian', 'snp', 'uniform', 'poisson', 'multi']) # noise_type
-    parser.add_argument('-t', '--train_dataset_ratio', type=float, required=False, default=1.0) # train_dataset_size
-    parser.add_argument('-y', '--test_dataset_ratio', type=float, required=False, default=1.0) # test_dataset_size
+    parser.add_argument('--train_dataset_ratio', type=restricted_float, required=False, default=1.0) # train_dataset_size
+    parser.add_argument('--test_dataset_ratio', type=restricted_float, required=False, default=1.0) # test_dataset_size
+    parser.add_argument('--min_intensity', type=restricted_float, required=False, default=0.05)
     parser.add_argument('-b', '--batch_size', type=int, required=False, default=64) # batch_size
     parser.add_argument('-e', '--epoch', type=int, required=False, default=50) # epoch
     parser.add_argument('-p', '--pretrained', type=str, required=False, default=None)
-    parser.add_argument('-m', '--output_path_meta', type=str, required=False, default=path_result_meta)
-    parser.add_argument('-i', '--output_path_image', type=str, required=False, default=path_result_image)
-    parser.add_argument('-o', '--output_path_model', type=str, required=False, default=path_result_model)
-    parser.add_argument('-l', '--output_path_loss', type=str, required=False, default=path_result_loss)
-    parser.add_argument('-a', '--output_path_accuracy', type=str, required=False, default=path_result_accuracy)
-    parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Enable verbose mode")
+    parser.add_argument('--early_stopping', action='store_true', default=False)
+    parser.add_argument('--lr_scheduler', action='store_true', default=False)
+    parser.add_argument('--username', type=str, required=False, default=None)
+    parser.add_argument('--output_path_meta', type=str, required=False, default=path_result_meta)
+    parser.add_argument('--output_path_image', type=str, required=False, default=path_result_image)
+    parser.add_argument('--output_path_model', type=str, required=False, default=path_result_model)
+    parser.add_argument('--output_path_loss', type=str, required=False, default=path_result_loss)
+    parser.add_argument('--output_path_accuracy', type=str, required=False, default=path_result_accuracy)
+    parser.add_argument('--verbose', action='store_true', default=False, help="Enable verbose mode")
 
     # Parsing arguments
     args = parser.parse_args()
+
+    # Sanity check; directory existence
+    ensure_directory(path_dataset)
+    ensure_directory(path_result)
+    ensure_directory(path_result_root)
+    ensure_directory(args.output_path_meta)
+    ensure_directory(args.output_path_image)
+    ensure_directory(args.output_path_model)
+    ensure_directory(args.output_path_loss)
+    ensure_directory(args.output_path_accuracy)
 
     # Write meta data
     current_time = get_current_time_str()
@@ -215,11 +241,15 @@ if __name__=="__main__":
         f'datetime: {current_time}',
         f'dataset_type: {args.dataset_type}',
         f'noise_type: {args.noise_type}',
+        f'min_intensity: {args.min_intensity}',
         f'train_dataset_ratio: {args.train_dataset_ratio}',
         f'train_dataset_ratio: {args.test_dataset_ratio}',
         f'batch_size: {args.batch_size}',
         f'epoch: {args.epoch}',
         f'pretrained: {args.pretrained}',
+        f'early_stopping: {args.early_stopping}',
+        f'lr_scheduler: {args.lr_scheduler}',
+        f'username: {args.username}',
         f'output_path_meta: {args.output_path_meta}',
         f'output_path_image: {args.output_path_image}',
         f'output_path_model: {args.output_path_model}',
@@ -236,16 +266,17 @@ if __name__=="__main__":
     accuracy_csv_file_path = args.output_path_accuracy + f'{exp_no}_accuracy.csv'
 
     # Sanity check: Print meta data
-    print("## Meta data ##")
-    for line in lines:
-        print(line)
-    print(meta_file_path)
-    print(image_file_path)
-    print(model_file_path)
-    print(loss_file_path)
-    print(accuracy_file_path)
-    print(accuracy_csv_file_path)
-    print("#####")
+    if args.verbose:
+        print("## Meta data ##")
+        for line in lines:
+            print(line)
+        print(meta_file_path)
+        print(image_file_path)
+        print(model_file_path)
+        print(loss_file_path)
+        print(accuracy_file_path)
+        print(accuracy_csv_file_path)
+        print("#####")
     
     with open(meta_file_path, 'w') as file:
         for line in lines:

@@ -62,13 +62,14 @@ def generate_one_noisy_image(original_image, intensity=0.5, noise_type='gaussian
     return noisy_image
 
 class NoisedDataset(Dataset):
-    def __init__(self, data_loader, noise_type='gaussian'):
+    def __init__(self, data_loader, noise_type='gaussian', min_intensity=0.05):
         self.x = []
         self.y = []
+        min_intensity = max(0, min(min_intensity, 0.05)) # Clipping
         for image, label in data_loader:
             image = image.squeeze(0)
             if( np.random.rand() >= 0.5 ):
-                self.x.append( generate_one_noisy_image(image, intensity=np.random.rand(), noise_type=noise_type) )
+                self.x.append( generate_one_noisy_image(image, intensity=np.random.rand()*0.95+min_intensity, noise_type=noise_type) )
                 self.y.append( 1 )
             else:
                 self.x.append( image )
@@ -83,23 +84,24 @@ class NoisedDataset(Dataset):
         return x_data, y_data
 
 class MultiNoisedDataset(Dataset):
-    def __init__(self, data_loader):
+    def __init__(self, data_loader, min_intensity=0.05):
         self.x = []
         self.y = []
+        min_intensity = max(0, min(min_intensity, 0.05)) # Clipping
         for image, label in data_loader:
             image = image.squeeze(0)
             switch = random.choice([0, 1, 2, 3, 4])
             if switch == 0: # AWGN
-                self.x.append(generate_one_noisy_image(image, intensity=np.random.rand(), noise_type='gaussian'))
+                self.x.append(generate_one_noisy_image(image, intensity=np.random.rand()*0.95+min_intensity, noise_type='gaussian'))
                 self.y.append(0)
             elif switch == 1: # SnP
-                self.x.append(generate_one_noisy_image(image, intensity=np.random.rand(), noise_type='snp'))
+                self.x.append(generate_one_noisy_image(image, intensity=np.random.rand()*0.95+min_intensity, noise_type='snp'))
                 self.y.append(1)
             elif switch == 2: # Uniform
-                self.x.append(generate_one_noisy_image(image, intensity=np.random.rand(), noise_type='uniform'))
+                self.x.append(generate_one_noisy_image(image, intensity=np.random.rand()*0.95+min_intensity, noise_type='uniform'))
                 self.y.append(2)
             elif switch == 3: # Poisson
-                self.x.append(generate_one_noisy_image(image, intensity=np.random.rand(), noise_type='poisson'))
+                self.x.append(generate_one_noisy_image(image, intensity=np.random.rand()*0.95+min_intensity, noise_type='poisson'))
                 self.y.append(3)
             else: # Keep original
                 self.x.append(image)

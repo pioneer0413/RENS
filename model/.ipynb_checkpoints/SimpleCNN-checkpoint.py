@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# Single Noise Classification Convolutional Neural Network
-class SNC_CNN(nn.Module):
+# Binary Noise Classification Convolutional Neural Network
+class BNC_CNN(nn.Module):
     def __init__(self):
-        super(SimpleCNN, self).__init__()
+        super(BNC_CNN, self).__init__()
         # 첫 번째 합성곱 레이어
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, padding=1)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
