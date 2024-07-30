@@ -1,0 +1,17 @@
+datetime: 24-07-26_10-49-38
+dataset_type: cifar10
+noise_type: gaussian
+train_dataset_ratio: 0.1
+train_dataset_ratio: 0.1
+batch_size: 64
+epoch: 30
+pretrained: None
+output_path_meta: /home/hwkang/jupyter/root/result/exp15/meta/
+output_path_image: /home/hwkang/jupyter/root/result/exp15/image/
+output_path_model: /home/hwkang/jupyter/root/result/exp15/model/
+output_path_loss: /home/hwkang/jupyter/root/result/exp15/loss/
+output_path_accuracy: /home/hwkang/jupyter/root/result/exp15/accuracy/
+verbose: False
+
+status: FAILED([Errno 2] No such file or directory: 'e/hwkang/jupyter/root/result/exp15/accuracy//028_exp15_accuarcy_cifar10_gaussian_24-07-26_10-49-38.csv')
+Total elapsed time: 11.809492 s

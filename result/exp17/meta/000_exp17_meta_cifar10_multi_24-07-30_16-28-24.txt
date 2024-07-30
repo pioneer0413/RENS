@@ -1,0 +1,17 @@
+datetime: 24-07-30_16-28-24
+dataset_type: cifar10
+noise_type: multi
+train_dataset_ratio: 1.0
+train_dataset_ratio: 1.0
+batch_size: 64
+epoch: 50
+pretrained: None
+output_path_meta: /home/hwkang/jupyter/root/result/exp17/meta/
+output_path_image: /home/hwkang/jupyter/root/result/exp17/image/
+output_path_model: /home/hwkang/jupyter/root/result/exp17/model/
+output_path_loss: /home/hwkang/jupyter/root/result/exp17/loss/
+output_path_accuracy: /home/hwkang/jupyter/root/result/exp17/accuracy/
+verbose: False
+
+status: SUCCESS
+Total elapsed time: 152.299743 s

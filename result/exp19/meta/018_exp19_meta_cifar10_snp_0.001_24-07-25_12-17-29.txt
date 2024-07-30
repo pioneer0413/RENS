@@ -1,0 +1,17 @@
+datetime: 24-07-25_12-17-29
+dataset_type: cifar10
+noise_type: snp
+epsilon: 0.001
+train_dataset_ratio: 1.0
+train_dataset_ratio: 1.0
+batch_size: 64
+epoch: 50
+pretrained: ../../result/exp15/model/016_cifar10_snp_24-07-24_17-15-57.pt
+output_path_image: /home/hwkang/jupyter/root/result/exp19/image/
+output_path_loss: /home/hwkang/jupyter/root/result/exp19/loss/
+output_path_accuracy: /home/hwkang/jupyter/root/result/exp19/accuracy/
+output_path_meta: /home/hwkang/jupyter/root/result/exp19/meta/
+verbose: False
+
+status: SUCCESS
+Total elapsed time: 5.070629 s

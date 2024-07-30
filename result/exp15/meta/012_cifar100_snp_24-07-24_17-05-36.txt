@@ -1,0 +1,16 @@
+datetime: 24-07-24_17-05-36
+dataset_type: cifar100
+noise_type: snp
+train_dataset_ratio: 0.1
+train_dataset_ratio: 0.1
+batch_size: 64
+epoch: 50
+pretrained: None
+output_path_image: /home/hwkang/jupyter/root/result/exp15/image/
+output_path_loss: /home/hwkang/jupyter/root/result/exp15/loss/
+output_path_accuracy: /home/hwkang/jupyter/root/result/exp15/accuracy/
+output_path_meta: /home/hwkang/jupyter/root/result/exp15/meta/
+verbose: False
+
+status: SUCCESS
+Total elapsed time: 17.586141 s

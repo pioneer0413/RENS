@@ -1,0 +1,13 @@
+datetime: 24-07-18_13-19-28
+noise_type: poisson
+train_dataset_ratio: 0.1
+train_dataset_ratio: 0.1
+batch_size: 64
+epoch: 50
+output_path_image: /home/hwkang/jupyter/root/result/exp14/image/
+output_path_loss: /home/hwkang/jupyter/root/result/exp14/loss/
+output_path_accuracy: /home/hwkang/jupyter/root/result/exp14/accuracy/
+output_path_meta: /home/hwkang/jupyter/root/result/exp14/meta/
+verbose: False
+
+status: SUCCESS

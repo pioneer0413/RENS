@@ -1,0 +1,17 @@
+datetime: 24-07-25_10-57-07
+dataset_type: cifar10
+noise_type: uniform
+epsilon: 0.01
+train_dataset_ratio: 1.0
+train_dataset_ratio: 1.0
+batch_size: 64
+epoch: 50
+pretrained: ../../result/exp15/model/017_cifar10_uniform_24-07-24_17-20-50.pt
+output_path_image: /home/hwkang/jupyter/root/result/exp19/image/
+output_path_loss: /home/hwkang/jupyter/root/result/exp19/loss/
+output_path_accuracy: /home/hwkang/jupyter/root/result/exp19/accuracy/
+output_path_meta: /home/hwkang/jupyter/root/result/exp19/meta/
+verbose: False
+
+status: SUCCESS
+Total elapsed time: 4.729358 s

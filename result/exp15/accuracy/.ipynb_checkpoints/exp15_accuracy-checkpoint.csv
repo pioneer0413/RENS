@@ -1,0 +1,2 @@
+accuracy,precision,recall,f1_score,TP,TN,FP,FN,dataset_type,noise_type,train_dataset_ratio,test_dataset_ratio,batch_size,epoch
+98.3,0.9937106918238994,0.9713114754098361,0.9823834196891191,474,509,3,14,cifar10,gaussian,0.1,0.1,64,30
