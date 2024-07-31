@@ -242,7 +242,7 @@ if __name__=="__main__":
 
     # Write meta data
     current_time = get_current_time_str()
-    xid = get_next_xid(path_result_meta)
+    xid = get_next_xid(args.output_path_meta)
     lines = [
         f'datetime: {current_time}',
         f'dataset_type: {args.dataset_type}',
