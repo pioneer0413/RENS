@@ -1,9 +1,10 @@
 # Experiment no.17 evaluation
 
 # Constants
-exp_no = 'exp17' # NOTICE: Change before running this script!
-username = 'hwkang' # NOTICE: Change before running this script!
-path_root = f'/home/{username}/jupyter/root/' # NOTICE: Change before running this script!
+from pathlib import Path
+exp_no = 'exp17' # NOTICE: Change at each experiment!
+directory = current_file_path = Path(__file__).resolve()
+path_root = str(directory.parent.parent.parent)
 path_dataset = path_root + 'dataset/' # NOTICE: Change before running this script! 
 path_result = path_root + 'result/' # NOTICE: Change before running this script!
 path_result_root = path_result + exp_no + '/'
@@ -133,7 +134,8 @@ def main(args):
 
                 # Save best model
                 if( epoch_loss < max_epoch_loss ):
-                    print(f'Model saved: Epoch [{epoch+1}] [Current] {epoch_loss:.4f} << {max_epoch_loss:.4f} [Max]')
+                    if args.verbose:
+                        print(f'Model saved: Epoch [{epoch+1}] [Current] {epoch_loss:.4f} << {max_epoch_loss:.4f} [Max]')
                     torch.save(model.state_dict(), model_file_path)
                     best_model_state = model.state_dict()
                     best_epoch_idx = epoch + 1
@@ -155,7 +157,8 @@ def main(args):
                 if args.early_stopping:
                     early_stopping(epoch_loss, model)
                     if early_stopping.early_stop:
-                        print(f"Early stopping at epoch {epoch+1} (epoch loss:{epoch_loss:.4f})")
+                        if args.verbose:
+                            print(f"Early stopping at epoch {epoch+1} (epoch loss:{epoch_loss:.4f})")
                         break
 
         # Load model parameters at best epoch loss
@@ -205,9 +208,9 @@ if __name__=="__main__":
     # Command-line arguments
     parser.add_argument('-d', '--dataset_type', type=str, required=False, default='cifar10', choices=['cifar10','cifar100'])
     parser.add_argument('-n', '--noise_type', type=str, required=False, default='multi', choices=['gaussian', 'snp', 'uniform', 'poisson', 'multi']) # noise_type
+    parser.add_argument('--min_intensity', type=restricted_float, required=False, default=0.05)
     parser.add_argument('--train_dataset_ratio', type=restricted_float, required=False, default=1.0) # train_dataset_size
     parser.add_argument('--test_dataset_ratio', type=restricted_float, required=False, default=1.0) # test_dataset_size
-    parser.add_argument('--min_intensity', type=restricted_float, required=False, default=0.05)
     parser.add_argument('-b', '--batch_size', type=int, required=False, default=64) # batch_size
     parser.add_argument('-e', '--epoch', type=int, required=False, default=50) # epoch
     parser.add_argument('-p', '--pretrained', type=str, required=False, default=None)
