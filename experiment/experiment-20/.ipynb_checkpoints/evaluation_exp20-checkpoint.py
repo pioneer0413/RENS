@@ -1,11 +1,12 @@
 # Experiment no.20 evaluation
 
 # Constants
-exp_no = 'exp20' # NOTICE: Change before running this script!
-username = 'hwkang' # NOTICE: Change before running this script!
-path_root = f'/home/{username}/jupyter/root/' # NOTICE: Change before running this script!
-path_dataset = path_root + 'dataset/' # NOTICE: Change before running this script!
-path_result = path_root + 'result/' # NOTICE: Change before running this script!
+from pathlib import Path
+exp_no = 'exp20' # NOTICE: Change at each experiment!
+directory = current_file_path = Path(__file__).resolve()
+path_root = str(directory.parent.parent.parent)
+path_dataset = path_root + 'dataset/'
+path_result = path_root + 'result/'
 path_result_root = path_result + exp_no + '/'
 path_result_image = path_result_root + 'image/'
 path_result_model = path_result_root + 'model/'
