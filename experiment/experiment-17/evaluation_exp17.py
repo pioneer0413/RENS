@@ -102,8 +102,11 @@ def main(args):
     epoch_loss_rec = []
     max_epoch_loss = math.inf
 
-    #학습률 스케줄링
+    # Learning rate scehduling
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
+
+    # Early stopping
+    early_stopping = EarlyStopping(patience=10, min_delta=0.001)
     
     # Training loop
     if( args.pretrained is None ):
@@ -266,20 +269,27 @@ if __name__=="__main__":
     model_file_path = f'{args.output_path_model}/{xid:03d}_{exp_no}_model_{args.dataset_type}_{args.noise_type}_{current_time}.weights'
     loss_file_path = f'{args.output_path_loss}/{xid:03d}_{exp_no}_loss_{args.dataset_type}_{args.noise_type}_{current_time}.png'
     accuracy_file_path = f'{args.output_path_accuracy}/{xid:03d}_{exp_no}_accuarcy_{args.dataset_type}_{args.noise_type}_{current_time}.png'
-    accuracy_csv_file_path = args.output_path_accuracy + f'{exp_no}_accuracy.csv'
+    accuracy_csv_file_path = args.output_path_accuracy + f'{exp_no}_{args.dataset_type}_{args.noise_type}_accuracy.csv'
 
     # Sanity check: Print meta data
     if args.verbose:
-        print("## Meta data ##")
+        print("###############################")
+        print("########## Meta data ##########")
+        print("###############################")
         for line in lines:
             print(line)
+        print("######################################")
+        print("########## Output filenames ##########")
+        print("######################################")
         print(meta_file_path)
         print(image_file_path)
         print(model_file_path)
         print(loss_file_path)
         print(accuracy_file_path)
         print(accuracy_csv_file_path)
-        print("#####")
+        print("##########################################")
+        print("########## End of the meta data ##########")
+        print("##########################################\n")
     
     with open(meta_file_path, 'w') as file:
         for line in lines:
