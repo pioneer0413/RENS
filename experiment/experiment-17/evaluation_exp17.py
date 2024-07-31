@@ -4,7 +4,7 @@
 from pathlib import Path
 exp_no = 'exp17' # NOTICE: Change at each experiment!
 directory = current_file_path = Path(__file__).resolve()
-path_root = str(directory.parent.parent.parent)
+path_root = str(directory.parent.parent.parent) + '/'
 path_dataset = path_root + 'dataset/' # NOTICE: Change before running this script! 
 path_result = path_root + 'result/' # NOTICE: Change before running this script!
 path_result_root = path_result + exp_no + '/'
