@@ -114,4 +114,29 @@ class MultiNoisedDataset(Dataset):
         x_data = self.x[idx]
         y_data = self.y[idx]
         return x_data, y_data
-            
+
+class GradedNoisedDataset(Dataset):
+    def __init__(self, data_loader, noise_type='random', min_intensity=0.05, noise_classes=5):
+        self.x = []
+        self.y = []
+
+        classes_step = 1.0/noise_classes
+        noise_type_switch = ['gaussian', 'snp', 'uniform', 'poisson']
+        for image, label in data_loader:
+            image = image.squeeze(0)
+            intensity_switch = np.random.randint(0, noise_classes)
+            if noise_type=='random': #no noise_type addressed : random noise_type
+                self.x.append(generate_one_noisy_image(image, intensity=(np.random.rand()*0.8+0.1)/5+classes_step*intensity_switch, noise_type=noise_type_switch[np.random.randint(0, 4)]))
+                self.y.append(intensity_switch)
+            else:
+                self.x.append(generate_one_noisy_image(image, intensity=(np.random.rand()*0.8+0.1)/5+classes_step*intensity_switch, noise_type=noise_type))
+                self.y.append(intensity_switch)
+
+    def __len__(self):
+        return len(self.x)
+
+    def __getitem__(self, idx):
+        x_data = self.x[idx]
+        y_data = self.y[idx]
+        return x_data, y_data
+
