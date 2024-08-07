@@ -12,8 +12,8 @@ def generate_salt_and_pepper(image, intensity):
     noisy_image = image.copy()
     salt_prob = pepper_prob = intensity
     
-    num_salt = np.ceil(salt_prob * image.size)
-    num_pepper = np.ceil(pepper_prob * image.size)
+    num_salt = max(0, np.ceil(salt_prob * image.size))
+    num_pepper = max(0, np.ceil(pepper_prob * image.size))
     
     # Add salt noise
     coords = [np.random.randint(0, i, int(num_salt)) for i in image.shape]
@@ -116,21 +116,25 @@ class MultiNoisedDataset(Dataset):
         return x_data, y_data
 
 class GradedNoisedDataset(Dataset):
-    def __init__(self, data_loader, noise_type='random', min_intensity=0.05, noise_classes=5):
+    def __init__(self, data_loader, noise_type='gaussian', min_intensity=0.05, noise_classes=5, trim_ratio=0.05):
         self.x = []
         self.y = []
 
-        classes_step = 1.0/noise_classes
-        noise_type_switch = ['gaussian', 'snp', 'uniform', 'poisson']
+        classes_step = (1.0-min_intensity)/(noise_classes-1)
         for image, label in data_loader:
             image = image.squeeze(0)
             intensity_switch = np.random.randint(0, noise_classes)
-            if noise_type=='random': #no noise_type addressed : random noise_type
-                self.x.append(generate_one_noisy_image(image, intensity=(np.random.rand()*0.8+0.1)/5+classes_step*intensity_switch, noise_type=noise_type_switch[np.random.randint(0, 4)]))
-                self.y.append(intensity_switch)
+            if(intensity_switch==0):
+                if(trim_ratio>=0.5): # signal which means make randn(gaussian) input
+                    self.x.append(generate_one_noisy_image(image, intensity=np.random.randn()*min_intensity, noise_type=noise_type))
+                else:
+                    self.x.append(generate_one_noisy_image(image, intensity=(np.random.rand()*(1-2*trim_ratio)+trim_ratio)*min_intensity, noise_type=noise_type))
             else:
-                self.x.append(generate_one_noisy_image(image, intensity=(np.random.rand()*0.8+0.1)/5+classes_step*intensity_switch, noise_type=noise_type))
-                self.y.append(intensity_switch)
+                if(trim_ratio>=0.5): # signal which means make randn(gaussian) input
+                    self.x.append(generate_one_noisy_image(image, intensity=np.random.randn()*classes_step+classes_step*(intensity_switch-1)+min_intensity, noise_type=noise_type))
+                else:
+                    self.x.append(generate_one_noisy_image(image, intensity=(np.random.rand()*(1-2*trim_ratio)+trim_ratio)*classes_step+classes_step*(intensity_switch-1)+min_intensity, noise_type=noise_type))
+            self.y.append(intensity_switch)
 
     def __len__(self):
         return len(self.x)

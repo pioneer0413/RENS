@@ -11,7 +11,7 @@ noise_types=("gaussian" "snp" "uniform" "poisson")
 classes=("3" "5" "7" "10" "20")
 
 # trim 비율을 지정합니다.
-trim=1.0
+trim=0.025
 
 # 에포크 수를 지정합니다.
 epoch=1000
@@ -23,7 +23,6 @@ early='--early_stopping'
 lr='--lr_scheduler'
 
 # 중첩된 루프를 사용하여 모든 조합에 대해 명령을 실행합니다.
-
 for dataset in "${datasets[@]}"
 do
     for class in "${classes[@]}"
@@ -31,7 +30,7 @@ do
         for noise in "${noise_types[@]}"
         do
             echo "실행 중: $dataset $noise $class $trim $epoch $early $lr"
-            python evaluation_exp16.py -d $dataset -n $noise -c $class --trim $trim -e $epoch $early $lr --username mwkim --memo "synthesize.py correction ver. for snp"
+            python evaluation_exp16.py -d $dataset -n $noise -c $class --trim $trim -e $epoch $early $lr --username mwkim --memo "synthesize.py correction ver."
         done
     done
 done

@@ -1,4 +1,4 @@
-# Experiment no.16 evaluation
+# Experiment no.20 evaluation
 
 # Constants
 from pathlib import Path
@@ -84,7 +84,7 @@ def main(args):
     # On test dataset 
     test_dataset = get_subset(test_dataset, args.test_dataset_ratio)
     test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False)
-    graded_noised_test_dataset = GradedNoisedDataset(test_loader, noise_type=args.noise_type, min_intensity=args.min_intensity, noise_classes=args.classes, trim_ratio=0) # no trim at test model (based on reality)
+    graded_noised_test_dataset = GradedNoisedDataset(test_loader, noise_type=args.noise_type, min_intensity=args.min_intensity, noise_classes=args.classes, trim_ratio=args.trim)
     graded_noised_test_loader = DataLoader(graded_noised_test_dataset, batch_size=args.batch_size, shuffle=False)
     
     # Sanity check
@@ -112,7 +112,7 @@ def main(args):
     # Training loop
     if( args.pretrained is None ):
         for epoch in range(num_epochs):
-                last_lr = str(scheduler.get_last_lr()[0])
+                last_lr = ""
                 model.train() #change model's mode to train
                 running_loss = 0.0
                 for inputs, labels in graded_noised_train_loader:            
