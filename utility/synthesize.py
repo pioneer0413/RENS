@@ -67,7 +67,10 @@ class NoisedDataset(Dataset):
         self.y = []
         
         for image, label in data_loader:
-            image = image.squeeze(0)
+            if isinstance(image, tuple):
+              image = image[0]
+            else:
+              image = image.squeeze(0)
             if( np.random.rand() >= 0.5 ):
                 self.x.append( generate_one_noisy_image(image, intensity=np.random.rand()*(1-min_intensity)+min_intensity, noise_type=noise_type) )
                 self.y.append( 1 )
