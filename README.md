@@ -11,11 +11,15 @@ TODO: writing
 TODO: writing
 
 # Project Structure
-TODO: writing, brief, bullet-point style
-- `experiment/`: bla-bla
-- `model/`: bla-bla
-- `temporary/`: bla-bla
-- `utility/`: bla-bla
+## Directories
+- `experiment/`: TODO: writing
+- `model/`: TODO: writing
+- `temporary/`: TODO: writing
+- `utility/`: TODO: writing
+
+## Branches
+Unless there is a particular reason, the branch except `main` is named `exp*`.<br>
+Each branch focuses on its experimental subject.<br>
 
 # Installation and Dependencies
 TODO: (optional) writing 
@@ -29,7 +33,15 @@ TODO: writing
 TODO: (direction) Instructions on how to run the experiments.
 
 # Result and Analysis
-TODO: (direction) A summary of the key results from the experiments, including any significant findings and their implications.
+The results on this page are summarized. If you want more detail about each experiment, then go to `exp/experiment-*/READMD.md`
+
+| Id | Subject | Result |
+| - | - | - |
+| Experiment-06 | TODO: writing | TODO: writing |
+| Experiment-07 | TODO: writing | TODO: writing |
+| Experiment-10 | TODO: writing | TODO: writing |
+| Experiment-13 | TODO: writing | TODO: writing |
+| Experiment-16 | TODO: writing | TODO: writing |
 
 # Contributing
 TODO: (direction) Instructions on how others can contribute to the project.
