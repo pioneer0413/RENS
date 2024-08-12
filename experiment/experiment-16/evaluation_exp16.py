@@ -1,4 +1,4 @@
-# Experiment no.20 evaluation
+# Experiment no.16 evaluation
 
 # Constants
 from pathlib import Path
@@ -78,13 +78,13 @@ def main(args):
     if( args.pretrained is None ):
         train_dataset = get_subset(train_dataset, args.train_dataset_ratio)
         train_loader = DataLoader(dataset=train_dataset, batch_size=1, shuffle=False)
-        graded_noised_train_dataset = GradedNoisedDataset(train_loader, noise_type=args.noise_type, min_intensity=args.min_intensity, noise_classes=args.classes)    
+        graded_noised_train_dataset = GradedNoisedDataset(train_loader, noise_type=args.noise_type, min_intensity=args.min_intensity, noise_classes=args.classes, trim_ratio=args.trim)    
         graded_noised_train_loader = DataLoader(graded_noised_train_dataset, batch_size=args.batch_size, shuffle=True)
 
     # On test dataset 
     test_dataset = get_subset(test_dataset, args.test_dataset_ratio)
     test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False)
-    graded_noised_test_dataset = GradedNoisedDataset(test_loader, noise_type=args.noise_type, min_intensity=args.min_intensity, noise_classes=args.classes)
+    graded_noised_test_dataset = GradedNoisedDataset(test_loader, noise_type=args.noise_type, min_intensity=args.min_intensity, noise_classes=args.classes, trim_ratio=0) # no trim at test model (based on reality)
     graded_noised_test_loader = DataLoader(graded_noised_test_dataset, batch_size=args.batch_size, shuffle=False)
     
     # Sanity check
@@ -112,6 +112,7 @@ def main(args):
     # Training loop
     if( args.pretrained is None ):
         for epoch in range(num_epochs):
+                last_lr = str(scheduler.get_last_lr()[0])
                 model.train() #change model's mode to train
                 running_loss = 0.0
                 for inputs, labels in graded_noised_train_loader:            
@@ -147,6 +148,11 @@ def main(args):
                 # 학습률 감소 스케줄러에 검증 손실 전달
                 if args.lr_scheduler:
                     scheduler.step(epoch_loss)
+
+                    if len(last_lr) < len(str(scheduler.get_last_lr()[0])):
+                        last_lr = str(scheduler.get_last_lr()[0])
+                        with open(meta_file_path, 'a') as file:
+                            file.write(f'\nlearning rate changed to {last_lr} at Epoch {epoch + 1}')
                     
                     # 학습률 확인 및 출력
                     if args.verbose:
@@ -161,6 +167,8 @@ def main(args):
                     early_stopping(epoch_loss, model)
                     if early_stopping.early_stop:
                         print(f"Early stopping at epoch {epoch+1} (epoch loss:{epoch_loss:.4f})")
+                        with open(meta_file_path, 'a') as file:
+                            file.write(f"\nEarly stopping at epoch {epoch+1} (epoch loss:{epoch_loss:.4f})")
                         break
         
         # Load model parameters at best epoch loss
@@ -187,6 +195,15 @@ def main(args):
 
     accuracy = 100 * correct / total
     print(f'Accuracy: {accuracy:.2f}%')
+
+    accuracy_summary_record = {
+        'xid': xid,
+        'classes': args.classes,
+        'noise_type': args.noise_type,
+        'trim': args.trim,
+        'accuracy': accuracy
+    }
+    save_record_to_csv(accuracy_summary_csv_file_path, accuracy_summary_record)
     
     visualize_confusion_matrix(pilot=False, all_labels=all_labels, all_predictions=all_predictions, num_label=args.classes, noise_type=args.noise_type, accuracy=accuracy, file_path=accuracy_file_path)
 
@@ -209,16 +226,17 @@ if __name__ == "__main__":
 
     # Command-line arguments
     parser.add_argument('-d', '--dataset_type', type=str, required=False, default='cifar10', choices=['cifar10','cifar100'])
-    parser.add_argument('-n', '--noise_type', type=str, required=False, default='random', choices=['gaussian', 'snp', 'uniform', 'poisson']) # default:random noise type
+    parser.add_argument('-n', '--noise_type', type=str, required=False, default='gaussian', choices=['gaussian', 'snp', 'uniform', 'poisson'])
     parser.add_argument('--train_dataset_ratio', type=restricted_float, required=False, default=1.0) # train_dataset_size
     parser.add_argument('--test_dataset_ratio', type=restricted_float, required=False, default=1.0) # test_dataset_size
-    parser.add_argument('--min_intensity', type=restricted_float, required=False, default=0.05) #not used at here
+    parser.add_argument('--min_intensity', type=restricted_float, required=False, default=0.05)
     parser.add_argument('-b', '--batch_size', type=int, required=False, default=64) # batch_size
     parser.add_argument('-e', '--epoch', type=int, required=False, default=50) # epoch
     parser.add_argument('-p', '--pretrained', type=str, required=False, default=None)
     parser.add_argument('--early_stopping', action='store_true', default=False)
     parser.add_argument('--lr_scheduler', action='store_true', default=False)
     parser.add_argument('-c', '--classes', type=int, required=False, default=5, help="classes >= 3") #num_classes
+    parser.add_argument('--trim', type=restricted_float, required=False, default=0.1) #grading trim ratio (each grade's low 0.1 & high 0.1 (each 10%) does not exist)
     parser.add_argument('--username', type=str, required=False, default=None)
     parser.add_argument('--output_path_meta', type=str, required=False, default=path_result_meta)
     parser.add_argument('--output_path_image', type=str, required=False, default=path_result_image)
@@ -257,6 +275,7 @@ if __name__ == "__main__":
         f'early_stopping: {args.early_stopping}',
         f'lr_scheduler: {args.lr_scheduler}',
         f'classes: {args.classes}',
+        f'trim: {args.trim}',
         f'username: {args.username}',
         f'output_path_meta: {args.output_path_meta}',
         f'output_path_image: {args.output_path_image}',
@@ -273,6 +292,7 @@ if __name__ == "__main__":
     loss_file_path = f'{args.output_path_loss}/{xid:03d}_{exp_no}_loss_{args.dataset_type}_{args.noise_type}_{current_time}.png'
     accuracy_file_path = f'{args.output_path_accuracy}/{xid:03d}_{exp_no}_accuarcy_{args.dataset_type}_{args.noise_type}_{current_time}.png'
     accuracy_csv_file_path = args.output_path_accuracy + f'{exp_no}_accuracy.csv'
+    accuracy_summary_csv_file_path = args.output_path_accuracy + f'{exp_no}_accuracy_summary.csv'
 
     # Sanity check: Print meta data
     if args.verbose:
@@ -296,10 +316,13 @@ if __name__ == "__main__":
         start_time = time.time()
         main(args)
         write_metadata(meta_file_path, 'SUCCESS')
+        print("SUCCESS")
     except KeyboardInterrupt:
         write_metadata(meta_file_path, 'HALTED')
+        print("HALTED")
     except Exception as e:
         write_metadata(meta_file_path, f'FAILED({e})')
+        print(f"FAILED({e})")
     finally:
         end_time = time.time()
         elapsed_time = end_time - start_time
