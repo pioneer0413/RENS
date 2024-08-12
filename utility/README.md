@@ -14,14 +14,20 @@ These utilities help in tasks such as data manipulation, logging, configuration 
 
 # How to Annotate
 
-You should follow the format below:
+You should follow the format below.
+
+**A row you should fill: `"..."`**
+
+**A row you don't necessarily fill: `"..." (optional)`**
+
+**A row you shouldn't fill: where just laid as blank**
 
 ## File
 ```
 File name: "Name of the file"
 Purpose: "..."
 
-Usage: ($\color{Yellow}{optional}$)
+Usage:
   - "python example.py --option dummy ..."
 
 Change log:
@@ -36,10 +42,10 @@ Last author: "Name of the lastest author"
 ```
 """
 Purpose: "..."
-Attributes: "..."
+Attributes: 
   - attr1 (type): "detailed description"
   - attr2 (type): "..."
-Methods: "..."
+Methods: 
   - method1: "feature of the method"
   - method2: "..."
 Relationships:
@@ -49,9 +55,9 @@ Relationships:
     - "..."
 Constraints:
   - "..."
-Exceptions: "..." ($\color{Yellow}{optional}$)
+Exceptions: "..." (optional)
   - "..."
-Notes: "..." ($\color{Yellow}{optional}$)
+Notes: "..." (optional)
 Last update: "yyyy-mm-dd HH:MM DDD."
 Last author: "Name of the latest modifier"
 """
@@ -61,21 +67,21 @@ Last author: "Name of the latest modifier"
 ```
 """
 Purpose: "..."
-Parameters: "..." ($\color{Yellow}{optional}$)
+Parameters: "..." (optional)
  - param1 (type): "detailed description"
  - param2 (type): "..."
-Returns: "..." ($\color{Yellow}{optional}$)
+Returns: "..." (optional)
  - return1 (type): "detailed description"
  - return2 (type): "..."
-Exceptions: "..." ($\color{Yellow}{optional}$) 
-Notes: "..." ($\color{Yellow}{optional}$) 
-See also: "..." ($\color{Yellow}{optional}$)
+Exceptions: "..." (optional)
+Notes: "..." (optional)
+See also: "..." (optional)
  - "path/to/reference1.*"
  - "path/to/reference2.*"
 Last update: "yyyy-mm-dd HH:MM DDD."
 Last author: "Name of the latest modifier"
-TODO: "..." ($\color{Yellow}{optional}$)
+TODO: "..." (optional)
   - work: "what to do" >> ("version that will be fixed")
-    - Reason: "reason to do" ($\color{Yellow}{optional}$)
+    - Reason: "reason to do" (optional)
 """
 ```
