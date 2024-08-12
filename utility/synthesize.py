@@ -1,14 +1,50 @@
+"""
+File name: synthesize.py
+Purpose: 데이터에 잡음을 더해 노이즈 데이터를 생성하는 함수의 모음
+
+Change log:
+  - 2024-08-12: 코드 설명 주석 추가 (v1.0.0)
+
+Last update: 2024-08-12 12:59 Mon.
+Last author: hwkang
+"""
+
 import torch
 from torch.utils.data import Dataset
 import numpy as np
 import random
 
-def generate_gaussian(image, c, w, h, intensity):
+
+"""
+Purpose: 단일 가우시안 잡음 이미지 생성
+Parameters: 
+  - image (ndarray): 넘파이 배열로 된 이미지 1장
+  - c (int): 채널 수
+  - w (int): Width
+  - h (int): Height
+  - intensity (float): 생성할 잡음의 세기
+Returns:
+  - noisy_image (ndarray): 가우시안 잡음이 더해진 이미지
+Last update: 2024-08-12 13:05 Mon.
+Last author: hwkang
+"""
+def generate_gaussian(image: np.ndarray, c: int, w: int, h: int, intensity: float):
     np_noise = np.random.randn(c, w, h) * intensity
     np_noisy_image = image + np_noise + 1e-7 # Preventing bias
     return np_noisy_image
-    
-def generate_salt_and_pepper(image, intensity):
+
+
+"""
+Purpose: 단일 소금과 후추 잡음 이미지 생성
+Parameters: 
+  - image (ndarray): 넘파이 배열로 된 이미지 1장
+  - intensity (float): 생성할 잡음의 세기
+Returns:
+  - noisy_image (ndarray): 소금과 후추 잡음이 더해진 이미지
+Last update: 2024-08-12 13:08 Mon.
+Last author: hwkang
+"""
+def generate_salt_and_pepper(image: np.ndarray, intensity: float):
     noisy_image = image.copy()
     salt_prob = pepper_prob = intensity
     
@@ -26,12 +62,37 @@ def generate_salt_and_pepper(image, intensity):
     np_noisy_image = noisy_image
     return np_noisy_image
 
-def generate_uniform(image, intensity):
+
+"""
+Purpose: 단일 동일 확률 잡음 이미지 생성
+Parameters: 
+  - image (ndarray): 넘파이 배열로 된 이미지 1장
+  - intensity (float): 생성할 잡음의 세기
+Returns:
+  - noisy_image (ndarray): 동일 확률 잡음이 더해진 이미지
+Last update: 2024-08-12 13:10 Mon.
+Last author: hwkang
+"""
+def generate_uniform(image: np.ndarray, intensity: float):
     noise = np.random.uniform(-1.0, 1.0, image.shape)
     noisy_image = image + noise * intensity
     return noisy_image
 
-def generate_poisson(image, c, w, h, intensity):
+
+"""
+Purpose: 단일 포아송 잡음 이미지 생성
+Parameters: 
+  - image (ndarray): 넘파이 배열로 된 이미지 1장
+  - c (int): 채널 수
+  - w (int): Width
+  - h (int): Height
+  - intensity (float): 생성할 잡음의 세기
+Returns:
+  - noisy_image (ndarray): 포아송 잡음이 더해진 이미지
+Last update: 2024-08-12 13:11 Mon.
+Last author: hwkang
+"""
+def generate_poisson(image: np.ndarray, c: int, w: int, h: int, intensity: float):
     np_noise = np.random.poisson(size=(c,w,h))
     
     # Normalize to [-1, 1] range
@@ -41,7 +102,19 @@ def generate_poisson(image, c, w, h, intensity):
     noisy_image = image + normalized_np_noise * intensity
     return noisy_image
 
-def generate_one_noisy_image(original_image, intensity=0.5, noise_type='gaussian'):
+
+"""
+Purpose: 한 종류의 잡음이 추가된 단일 이미지 생성
+Parameters:
+  - original_image (Tensor): 텐서로 된 이미지 1장
+  - intensity (float): 생성할 잡음의 세기
+  - noise_type (str): 추가할 잡음의 유형
+Returns: 
+  - noisy_image (Tensor): 한 종류의 잡음만이 포함된 이미지
+Last update: 2024-08-12 13:22 Mon.
+Last author: hwkang
+"""
+def generate_one_noisy_image(original_image: torch.Tensor, intensity: float=0.5, noise_type: str='gaussian'):
     np_original_image = original_image.numpy()
     c, w, h = np_original_image.shape
 
@@ -61,6 +134,10 @@ def generate_one_noisy_image(original_image, intensity=0.5, noise_type='gaussian
     
     return noisy_image
 
+
+"""
+TODO: 클래스 주석 달기 >> (v1.0.1)
+"""
 class NoisedDataset(Dataset):
     def __init__(self, data_loader, noise_type='gaussian', min_intensity=0.05):
         self.x = []
@@ -86,6 +163,10 @@ class NoisedDataset(Dataset):
         y_data = self.y[idx]
         return x_data, y_data
 
+
+"""
+TODO: 클래스 주석 달기 >> (v1.0.1)
+"""
 class MultiNoisedDataset(Dataset):
     def __init__(self, data_loader, min_intensity=0.05):
         self.x = []
@@ -118,6 +199,10 @@ class MultiNoisedDataset(Dataset):
         y_data = self.y[idx]
         return x_data, y_data
 
+
+"""
+TODO: 클래스 주석 달기 >> (v1.0.1)
+"""
 class GradedNoisedDataset(Dataset):
     def __init__(self, data_loader, noise_type='gaussian', min_intensity=0.05, noise_classes=5, trim_ratio=0.05):
         self.x = []
