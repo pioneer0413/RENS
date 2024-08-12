@@ -90,7 +90,7 @@ def calculate_confusion_metrics(labels, predictions, num_class=2):
         # F1-Score
         f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
     
-        return precision, recall, f1_score
+        return [precision], [recall], [f1_score]
     
     else:
         precisions = []

@@ -167,6 +167,8 @@ def main(args):
                     early_stopping(epoch_loss, model)
                     if early_stopping.early_stop:
                         print(f"Early stopping at epoch {epoch+1} (epoch loss:{epoch_loss:.4f})")
+                        with open(meta_file_path, 'a') as file:
+                            file.write(f"\nEarly stopping at epoch {epoch+1} (epoch loss:{epoch_loss:.4f})")
                         break
         
         # Load model parameters at best epoch loss
@@ -193,6 +195,15 @@ def main(args):
 
     accuracy = 100 * correct / total
     print(f'Accuracy: {accuracy:.2f}%')
+
+    accuracy_summary_record = {
+        'xid': xid,
+        'classes': args.classes,
+        'noise_type': args.noise_type,
+        'trim': args.trim,
+        'accuracy': accuracy
+    }
+    save_record_to_csv(accuracy_summary_csv_file_path, accuracy_summary_record)
     
     visualize_confusion_matrix(pilot=False, all_labels=all_labels, all_predictions=all_predictions, num_label=args.classes, noise_type=args.noise_type, accuracy=accuracy, file_path=accuracy_file_path)
 
@@ -281,6 +292,7 @@ if __name__ == "__main__":
     loss_file_path = f'{args.output_path_loss}/{xid:03d}_{exp_no}_loss_{args.dataset_type}_{args.noise_type}_{current_time}.png'
     accuracy_file_path = f'{args.output_path_accuracy}/{xid:03d}_{exp_no}_accuarcy_{args.dataset_type}_{args.noise_type}_{current_time}.png'
     accuracy_csv_file_path = args.output_path_accuracy + f'{exp_no}_accuracy.csv'
+    accuracy_summary_csv_file_path = args.output_path_accuracy + f'{exp_no}_accuracy_summary.csv'
 
     # Sanity check: Print meta data
     if args.verbose:
@@ -304,10 +316,13 @@ if __name__ == "__main__":
         start_time = time.time()
         main(args)
         write_metadata(meta_file_path, 'SUCCESS')
+        print("SUCCESS")
     except KeyboardInterrupt:
         write_metadata(meta_file_path, 'HALTED')
+        print("HALTED")
     except Exception as e:
         write_metadata(meta_file_path, f'FAILED({e})')
+        print(f"FAILED({e})")
     finally:
         end_time = time.time()
         elapsed_time = end_time - start_time
