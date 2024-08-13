@@ -21,39 +21,6 @@ sys.path.append(path_root)
 sys.path.append(path_dataset)
 sys.path.append(path_result)
 
-'''
-START of synthesize
-'''
-import torch
-from torch.utils.data import Dataset
-import numpy as np
-import random
-
-class BinarilyNoisedDataset(Dataset):
-    def __init__(self, data_loader, noise_type='gaussian', intensity_threshold=0.5, trim_ratio=0.01):
-        self.x = []
-        self.y = []
-
-        for image, label in data_loader:
-            image = image.squeeze(0)
-            if(np.random.randint(0, 2)):
-                self.x.append(generate_one_noisy_image(image, intensity=np.random.rand()*(intensity_threshold-trim_ratio), noise_type=noise_type))
-                self.y.append(0)
-            else:
-                self.x.append(generate_one_noisy_image(image, intensity=np.random.rand()*(1-intensity_threshold-trim_ratio)+intensity_threshold+trim_ratio, noise_type=noise_type))
-                self.y.append(1)
-
-    def __len__(self):
-        return len(self.x)
-
-    def __getitem__(self, idx):
-        x_data = self.x[idx]
-        y_data = self.y[idx]
-        return x_data, y_data
-'''
-END of synthesize
-'''
-
 # PyTorch family
 import torch
 import torch.nn as nn
@@ -78,6 +45,39 @@ from utility.synthesize import *
 from utility.visualize import *
 from model.SimpleCNN import *
 from model.LearningUtils import *
+
+'''
+START of synthesize
+'''
+#import torch
+#from torch.utils.data import Dataset
+#import numpy as np
+import random
+
+class BinarilyNoisedDataset(Dataset):
+    def __init__(self, data_loader, noise_type='gaussian', intensity_threshold=0.5, trim_ratio=0.01):
+        self.x = []
+        self.y = []
+
+        for image, label in data_loader:
+            image = image.squeeze(0)
+            if(np.random.rand() >= 0.5):
+                self.x.append(generate_one_noisy_image(image, intensity=np.random.rand()*(intensity_threshold-trim_ratio), noise_type=noise_type))
+                self.y.append(0)
+            else:
+                self.x.append(generate_one_noisy_image(image, intensity=np.random.rand()*(1-intensity_threshold-trim_ratio)+intensity_threshold+trim_ratio, noise_type=noise_type))
+                self.y.append(1)
+
+    def __len__(self):
+        return len(self.x)
+
+    def __getitem__(self, idx):
+        x_data = self.x[idx]
+        y_data = self.y[idx]
+        return x_data, y_data
+'''
+END of synthesize
+'''
 
 def main(args):
 
@@ -117,7 +117,7 @@ def main(args):
     # On test dataset 
     test_dataset = get_subset(test_dataset, args.test_dataset_ratio)
     test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False)
-    binarily_noised_test_dataset = BinarilyNoisedDataset(test_loader, noise_type=args.noise_type, intensity_threshold=args.intensity_threshold,  trim_ratio=0) # no trim at test model (based on reality)
+    binarily_noised_test_dataset = BinarilyNoisedDataset(test_loader, noise_type=args.noise_type, intensity_threshold=args.intensity_threshold, trim_ratio=0) # no trim at test model (based on reality)
     binarily_noised_test_loader = DataLoader(binarily_noised_test_dataset, batch_size=args.batch_size, shuffle=False)
     
     # Sanity check
@@ -219,13 +219,17 @@ def main(args):
     total = 0
     with torch.no_grad():
         for inputs, labels in binarily_noised_test_loader:
+            labels = labels.float().unsqueeze(1)
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
-            predicted_value, predicted_class = torch.max(outputs, dim=1)
+            predicted = (outputs >= 0.5).float()
+            #predicted_value, predicted_class = torch.max(outputs, dim=1)
             all_labels.extend(labels.cpu().numpy())
-            all_predictions.extend(predicted_class.cpu().numpy())
+            all_predictions.extend(predicted.cpu().numpy())
+            #all_predictions.extend(predicted_class.cpu().numpy())
             total += labels.size(0)
-            correct += (predicted_class == labels).sum().item()
+            correct += (predicted == labels).sum().item()
+            #correct += (predicted_class == labels).sum().item()
 
     accuracy = 100 * correct / total
     print(f'Accuracy: {accuracy:.2f}%')
