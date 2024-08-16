@@ -4,11 +4,14 @@ Purpose: 데이터에 잡음을 더해 노이즈 데이터를 생성하는 함�
 
 Change log:
   - 2024-08-12: 코드 설명 주석 추가 (v1.0.0)
+  - 2024-08-16: GradedNoisedDataset 클래스 주석 추가 (v1.0.1)
 
-Last update: 2024-08-12 12:59 Mon.
+Last update: 2024-08-16 13:43 Fri.
 Last author: hwkang
 """
 
+
+# Imports
 import torch
 from torch.utils.data import Dataset
 import numpy as np
@@ -136,7 +139,7 @@ def generate_one_noisy_image(original_image: torch.Tensor, intensity: float=0.5,
 
 
 """
-TODO: 클래스 주석 달기 >> (v1.0.1)
+TODO: 클래스 주석 달기 >> (v1.0.2)
 """
 class NoisedDataset(Dataset):
     def __init__(self, data_loader, noise_type='gaussian', min_intensity=0.05):
@@ -257,4 +260,3 @@ class GradedNoisedDataset(Dataset):
         x_data = self.x[idx]
         y_data = self.y[idx]
         return x_data, y_data
-

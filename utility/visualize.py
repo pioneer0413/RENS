@@ -4,14 +4,18 @@ Purpose: 입력값에 대한 시각화를 수행하는 함수의 모음
 
 Change log:
   - 2024-08-12: 코드 설명 주석 추가 (v1.0.0)
+  - 2024-08-16: get_classfication_metrics 함수 변경 및 save_to_csv 함수 주석 변경 (v1.0.1)
 
 Last update: 2024-08-12 12:27 Mon.
 Last author: hwkang
 """
 
+
+# Imports
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report
+from sklearn.metrics import precision_score, recall_score, f1_score
 from datetime import datetime
 import os
 import re
@@ -55,18 +59,17 @@ def get_current_time_str() -> str:
 
 
 """
-Purpose: 입력 이미지를 시각화
+Purpose: MNIST 데이터셋에서 기반한 노이즈 이미지를 시각화
 Parameters: 
   - pilot (bool): 실행 중인 프로그램이 파일럿인지 구분
   - loader (DataLoader): 시각화 샘플을 추출할 데이터로더
-  - file_path (str): 시각화 결과를 저장할 경로
+  - path (str): 시각화 결과를 저장할 경로
 Returns: None
-Last update: 2024-08-12 11:51 Mon.
+Notes: v1.0.1에서 인자명이 변경됨
+Last update: 2024-08-16 14:13 Fri.
 Last author: hwkang
-TODO: 
-  - 함수명에 맞게 데이터로더 대신 이미지 샘플 또는 배치를 입력받도록 변경 >> (v1.0.1)
 """
-def visualize_noisy_sample(pilot: bool, loader, file_path: str=None):
+def visualize_noisy_sample(pilot: bool, loader, path: str=None):
     # Unzip sample_batch to 10 samples
     x, y = next(iter(loader)) # [n, 64, 1, 28, 28] -> [64, 1, 28, 28]
     
@@ -85,7 +88,7 @@ def visualize_noisy_sample(pilot: bool, loader, file_path: str=None):
     else:
         # Output the image to path
         plt.tight_layout()
-        plt.savefig(file_path)
+        plt.savefig(path)
 
 
 """
@@ -145,54 +148,25 @@ Purpose: 모델의 분류 결과에 대한 성능 지표를 반환
 Parameters: 
   - labels (list): 분류 정답을 저장한 1차원 리스트
   - predictions (list): 분류 예측을 저장한 1차원 리스트
-  - num_class (int): 분류 클래스 수
+  - average (str): 클래스 분포 정도를 고려한 평균 방법
 Returns: 
-  - precisions (list): 클래스 별 precision
-  - recalls (list): 클래스 별 recall
-  - f1_score (list): 클래스 별 f1-score
-Last update: 2024-08-12 12:05 Mon.
+  - precision (float): 클래스 별 precision
+  - recall (float): 클래스 별 recall
+  - f1_score (float): 클래스 별 f1-score
+Notes:
+  - num_class 삭제
+  - 튜플 내 원소 자료형 변경 list -> float
+  - 함수명 변경 calculate_confusion_metrics -> get_classification_metrics (v1.0.1)
+Last update: 2024-08-16 14:53 Fri.
 Last author: hwkang
 TODO: 
-  - 메서드 'classification_report(..)'를 통해 코드 단순화 >> (v1.0.1)
+  - statistic.py로 메서드 이전 >> (v1.0.2)
 """
-def calculate_confusion_metrics(labels: list, predictions: list, num_class: int=2):
-    TP = TN = FP = FN = 0
-
-    # TODO: 분기문을 삭제하고 classification_report(..)를 사용해 통합
-    if num_class == 2:
-        for label, prediction in zip(labels, predictions):
-            if label == 1 and prediction == 1:
-                TP += 1
-            elif label == 0 and prediction == 0:
-                TN += 1
-            elif label == 0 and prediction == 1:
-                FP += 1
-            elif label == 1 and prediction == 0:
-                FN += 1
-
-        # Precision
-        precision = TP / (TP + FP) if (TP + FP) > 0 else 0
-        # Recall
-        recall = TP / (TP + FN) if (TP + FN) > 0 else 0
-        # F1-Score
-        f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
-    
-        return [precision], [recall], [f1_score]
-    
-    else:
-        precisions = []
-        recalls = []
-        f1_scores = []
-
-        report = classification_report(labels, predictions, target_names=list(range(num_class)), output_dict=True)
-
-        for class_name, metrics in report.items():
-            if class_name not in ['accuracy', 'macro avg', 'weighted avg']:
-                precisions.append(metrics['precision'])
-                recalls.append(metrics['recall'])
-                f1_scores.append(metrics['f1-score'])
-
-        return precisions, recalls, f1_scores
+def get_classification_metrics(labels: list, predictions: list, average='weighted') -> tuple:
+  precision = precision_score(labels, predictions, average=average)
+  recall = recall_score(labels, predictions, average=average)
+  f1_score = f1_score(labels, predictions, average=average)
+  return (precision, recall, f1_score)
 
 
 """
@@ -202,10 +176,10 @@ Parameters:
   - record (list): [ value1, value2, .., valueN ] 포맷의 리스트
 Returns: None
 Notes: Deprecated
-Last update: 2024-08-12 12:13 Mon.
+Last update: 2024-08-16 14:44 Fri.
 Last author: hwkang
 TODO: 
-  - work: 'utility/statistic.py'를 생성해 함수 이전 >> (v1.0.1)
+  - work: 'utility/statistic.py'를 생성해 메서드 이전 >> (v1.0.2)
     - reason: 시각화 메서드의 성격을 벗어남
 """
 def save_record_to_csv(file_path: str, record: list):

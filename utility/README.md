@@ -5,12 +5,12 @@ This directory contains various utility functions and classes that provide commo
 These utilities help in tasks such as data manipulation, logging, configuration management, and more.
 
 # Directory Structure
-- `detection/`: TODO: writing >> (v1.0.1)
-- `pycocotools/`: TODO: writing >> (v1.0.1)
-- `common.py`: TODO: writing >> (v1.0.1)
-- `preprocess.py`: TODO: writing >> (v1.0.1)
-- `synthesize.py`: TODO: writing >> (v1.0.1)
-- `visualize.py`: TODO: writing >> (v1.0.1)
+- `detection/`: TODO: writing >> (v1.0.2)
+- `pycocotools/`: TODO: writing >> (v1.0.2)
+- `common.py`: TODO: writing >> (v1.0.2)
+- `preprocess.py`: TODO: writing >> (v1.0.2)
+- `synthesize.py`: TODO: writing >> (v1.0.2)
+- `visualize.py`: TODO: writing >> (v1.0.2)
 
 # How to Annotate
 
@@ -24,6 +24,7 @@ You should follow the format below.
 
 ## File
 ```
+"""
 File name: "Name of the file"
 Purpose: "..."
 
@@ -36,6 +37,7 @@ Change log:
   
 Last update: "yyyy-mm-dd HH:MM DDD."
 Last author: "Name of the lastest author"
+"""
 ```
 
 ## Class

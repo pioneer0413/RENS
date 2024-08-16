@@ -4,13 +4,18 @@ Purpose: 범용적으로 활용되는 메서드 모음
 
 Change log:
   - 2024-08-12: 코드 설명 주석 추가 (v1.0.0)
+  - 2024-08-16: write_metadata 함수명 변경 (v1.0.1)
 
-Last update: 2024-08-12 15:22 Mon.
+Last update: 2024-08-16 14:00 Mon.
 Last author: hwkang
 """
 
+
+# Imports
 import os
 import argparse
+import json
+
 
 """
 Purpose: 전달된 경로 상에 디렉터리가 존재하는 지 보장
@@ -32,16 +37,28 @@ Parameters:
  - path (str): 작성할 파일 경로
  - status (str): 프로세스의 상태
 Returns: None
-Last update: 2024-08-12 15:27 Mon.
+Last update: 2024-08-16 13:30 Fri.
 Last author: hwkang
-TODO:
-  - work: 함수명 변경 >> (v1.0.1)
-    - reason: 현재 함수명은 메타 데이터를 작성하는 것처럼 묘사되어 있음
 """
-def write_metadata(path: str, status: str):
+def write_metadata_status(path: str, status: str):
     with open(path, 'a') as file:
         file.write(f'\nstatus: {status}')
 
+
+"""
+Purpose: json 형식으로 파일을 주어진 경로에 작성
+Parameters: 
+ - content (list): json 형식을 가진 List 객체
+ - path (str): 작성할 파일 경로
+ - mode (str): 작성 모드
+Returns: None
+Last update: 2024-08-16 14:04 Fri.
+Last author: hwkang
+"""
+def write_as_json(content: list, path: str, mode: str='w'):
+  with open(path, mode) as f:
+    json.dump(content, f)
+    
 
 """
 Purpose: 명령행 인자의 범위를 제한
