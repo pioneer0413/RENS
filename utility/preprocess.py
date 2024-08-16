@@ -20,6 +20,9 @@ Returns:
  - subset (Dataset): 부분 데이터셋
 Last update: 2024-08-12 15:18 Mon.
 Last author: hwkang
+TODO:
+  - work: 비율과 단일 부분 서브셋을 나타내는 함수명으로 변경 >> (v1.0.1)
+    - reason: 명시적인 크기를 나타내는 함수 추가 예정
 """
 def get_subset(dataset: Dataset, ratio: float=0.2) -> Dataset:
     ratio = round(ratio, 2)
@@ -28,3 +31,15 @@ def get_subset(dataset: Dataset, ratio: float=0.2) -> Dataset:
     remainder_size = dataset_size - subset_size
     subset, _ = random_split(dataset, [subset_size, remainder_size])
     return subset
+
+"""
+TODO: 함수 명세 작성 >> (v1.0.1)
+"""
+def get_single_subset_by_size():
+  pass
+
+"""
+TODO: 함수 명세 작성 >> (v1.0.1)
+"""
+def get_multiple_subset_by_ratio():
+  pass
