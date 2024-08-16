@@ -165,7 +165,7 @@ class NoisedDataset(Dataset):
 
 
 """
-TODO: 클래스 주석 달기 >> (v1.0.1)
+TODO: 클래스 주석 달기 >> (v1.0.2)
 """
 class MultiNoisedDataset(Dataset):
     def __init__(self, data_loader, min_intensity=0.05):
@@ -201,22 +201,48 @@ class MultiNoisedDataset(Dataset):
 
 
 """
-TODO: 클래스 주석 달기 >> (v1.0.1)
+Purpose: 한 종류의 잡음이 여러 범주 내의 정도로 추가된 이미지셋
+Attributes: 
+  - x (list): 이미지 리스트. 부모클래스로부터 상속
+  - y (list): 라벨 리스트. 부모클래스로부터 상속
+Methods: 
+  - __init__: 생성자 메소드, 노이즈 이미지 및 라벨의 초기화 및 생성. 부모클래스의 오버라이딩
+  - __len__: 데이터(이미지)리스트의 길이 반환. 부모클래스의 오버라이딩
+  - __getitem__: 인덱스에 해당하는 아이템(이미지, 라벨) 반환. 부모클래스의 오버라이딩
+Relationships:
+  - Inherits:
+    - Dataset
+Constraints:
+  - noise_type : generate_one_noisy_image() 함수에서 처리가능한 값
+  - min_intensity : 0 이상 1 이하 값
+  - noise_classes : 1 이상 값
+  - trim_ratio : 0 이상 값
+Notes: exp16 이외 추후 여타 실험의 사용계획 없음
+Last update: 2024-08-16 12:21 Fri.
+Last author: mwkim
 """
 class GradedNoisedDataset(Dataset):
     def __init__(self, data_loader, noise_type='gaussian', min_intensity=0.05, noise_classes=5, trim_ratio=0.05):
+        # min_intensity : label=0(무잡음)의 범주의 크기
+        # noise_classes : 총 label의 수, 잡음 강도의 범주의 갯수
+        # trim_ratio : 각 잡음 범주 내 상위/하위 데이터 미생성 범위. 0.5 이상값일 경우 범위 내 가우시안 분포로 데이터 생성
         self.x = []
         self.y = []
 
+        # classes_step : label=0을 제외한 다른 label 당 범주의 크기
         classes_step = (1.0-min_intensity)/(noise_classes-1)
         for image, label in data_loader:
             image = image.squeeze(0)
+            # intensity_switch : label 값, 랜덤한 지정. 0 ~ noise_classes-1 범위
             intensity_switch = np.random.randint(0, noise_classes)
+            # intensity_switch==0 : label=0. 범주의 크기가 min_intensity 값
             if(intensity_switch==0):
+                # trim_ratio>=0.5 : 잡음 범주 내 가우시안 분포로의 데이터 생성
                 if(trim_ratio>=0.5): # signal which means make randn(gaussian) input
                     self.x.append(generate_one_noisy_image(image, intensity=np.random.randn()*min_intensity, noise_type=noise_type))
                 else:
                     self.x.append(generate_one_noisy_image(image, intensity=(np.random.rand()*(1-2*trim_ratio)+trim_ratio)*min_intensity, noise_type=noise_type))
+            # intensity_switch!=0 : 범주의 크기가 classes_step 값
             else:
                 if(trim_ratio>=0.5): # signal which means make randn(gaussian) input
                     self.x.append(generate_one_noisy_image(image, intensity=np.random.randn()*classes_step+classes_step*(intensity_switch-1)+min_intensity, noise_type=noise_type))
