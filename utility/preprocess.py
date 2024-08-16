@@ -18,7 +18,7 @@ from torch.utils.data import Dataset, Subset, random_split
 """
 TODO: 함수 명세 작성 >> (v1.0.2)
 """
-def get_two_subsets_by_ratio(dataset: Dataset, split_ratio=8) -> List:
+def get_two_subsets_by_ratio(dataset: Dataset, split_ratio=8) -> list:
   if( 1 < split_ratio < 10 ):
     split_ratio = split_ratio / 10
   elif( split_ratio <= 0 or split_ratio >= 10 ):
@@ -60,7 +60,7 @@ def get_single_subset_by_size(dataset: Dataset, target_size: int) -> Dataset:
 """
 TODO: 함수 명세 작성 >> (v1.0.2)
 """
-def get_multiple_subsets_by_ratio(dataset: Dataset, num_split: int=8) -> List:
+def get_multiple_subsets_by_ratio(dataset: Dataset, num_split: int=8) -> list:
   total_length = len(dataset)
   base_length = total_length // num_split
   split_lengths = [base_length] * num_split
