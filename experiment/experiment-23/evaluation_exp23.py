@@ -55,19 +55,27 @@ START of synthesize
 import random
 
 class BinarilyNoisedDataset(Dataset):
-    def __init__(self, data_loader, noise_type='gaussian', intensity_threshold=0.5, trim_ratio=0.01):
+    def __init__(self, data_loader, noise_type='gaussian', intensity_threshold=0.5, margin=0.0, sigma_reduction=0, label_balance=False):
+        # intensity_threshold : label=0(약한잡음)의 분류기준점
+        # margin : 분류기준점으로부터 데이터 미생성 범위
+        # sigma_reduction : gaussian 정규분포 입력데이터에 대해 시그마 축소배율을 지정하여, 범위 내 데이터가 전체 정규분포 중 일정%를 대변하도록 함
+        #                  sigma_reduction!=0 일 때 gaussian 정규분포 입력데이터 사용, ==0일 때는 uniform 균등분포 사용
+        # label_balance : 각 label 별 할당되는 데이터 양이 같도록 함. 기존 실험16에서 사용된 방법
         self.x = []
         self.y = []
 
+        if margin>=intensity_threshold or margin >= (1-intensity_threshold):
+            raise ValueError("margin can't be equal or bigger than one label's range")
+        
         for image, label in data_loader:
             image = image.squeeze(0)
-            if(np.random.rand() >= 0.5):
-                self.x.append(generate_one_noisy_image(image, intensity=np.random.rand()*(intensity_threshold-trim_ratio), noise_type=noise_type))
-                self.y.append(0)
-            else:
-                self.x.append(generate_one_noisy_image(image, intensity=np.random.rand()*(1-intensity_threshold-trim_ratio)+intensity_threshold+trim_ratio, noise_type=noise_type))
+            if(self.label_creation(intensity_threshold, label_balance)):
+                self.x.append(generate_one_noisy_image(image, intensity=intensity_threshold + margin + self.intensity_creation(1-intensity_threshold-margin, sigma_reduction), noise_type=noise_type))
                 self.y.append(1)
-
+            else:
+                self.x.append(generate_one_noisy_image(image, intensity=self.intensity_creation(intensity_threshold-margin, sigma_reduction), noise_type=noise_type))
+                self.y.append(0)
+                    
     def __len__(self):
         return len(self.x)
 
@@ -75,6 +83,30 @@ class BinarilyNoisedDataset(Dataset):
         x_data = self.x[idx]
         y_data = self.y[idx]
         return x_data, y_data
+
+    def label_creation(self, intensity_threshold, label_balance):
+        if label_balance==True:
+            intensity_threshold=0.5
+        return (np.random.rand() >= intensity_threshold)
+
+    def intensity_creation(self, intensity_range, sigma_reduction):
+        if sigma_reduction==0:
+            return np.random.rand()*intensity_range
+        else:
+            while True:
+                intensity = np.random.randn()/sigma_reduction
+                '''
+                sigma_reduction 별 abs(intensity) <= 1 의 의미 차이
+                - sigma_reduction==1 : 정규분포 66% 이내의 값인지 여부를 확인
+                - sigma_reduction==2 : 정규분포 95% 이내의 값인지 여부를 확인
+                - sigma_reduction==3 : 정규분포 99.7% 이내의 값인지 여부를 확인
+                * abs(value) <= sigma : 66%이내 값, sigma*2 : 95%이내 값, sigma*3 : 99.7%이내 값
+                해당 범위 외 값이라면, 해당 범위 내 값이 될 때까지 반복
+                '''
+                if abs(intensity) <= 1:
+                    # intensity의 데이터 존재 가능 범위 : -1 ~ 1 => 0 ~ 1 로 변환하기 위해 + 1 (0~2) 후 / 2 (0~1)
+                    return (intensity + 1) / 2 * intensity_range
+                
 '''
 END of synthesize
 '''
@@ -109,15 +141,14 @@ def main(args):
     # Modify proportion of the dataset
     # On train dataset
     if( args.pretrained is None ):
-        train_dataset = get_subset(train_dataset, args.train_dataset_ratio)
+        train_dataset = get_single_subset_by_ratio(train_dataset, args.train_dataset_ratio)
         train_loader = DataLoader(dataset=train_dataset, batch_size=1, shuffle=False)
-        binarily_noised_train_dataset = BinarilyNoisedDataset(train_loader, noise_type=args.noise_type, intensity_threshold=args.intensity_threshold, trim_ratio=args.trim)    
+        binarily_noised_train_dataset = BinarilyNoisedDataset(train_loader, noise_type=args.noise_type, intensity_threshold=args.intensity_threshold, margin=args.margin, sigma_reduction=args.sigma_reduction, label_balance=args.label_balance)    
         binarily_noised_train_loader = DataLoader(binarily_noised_train_dataset, batch_size=args.batch_size, shuffle=True)
-
     # On test dataset 
-    test_dataset = get_subset(test_dataset, args.test_dataset_ratio)
+    test_dataset = get_single_subset_by_ratio(test_dataset, args.test_dataset_ratio)
     test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False)
-    binarily_noised_test_dataset = BinarilyNoisedDataset(test_loader, noise_type=args.noise_type, intensity_threshold=args.intensity_threshold, trim_ratio=0) # no trim at test model (based on reality)
+    binarily_noised_test_dataset = BinarilyNoisedDataset(test_loader, noise_type=args.noise_type, intensity_threshold=args.intensity_threshold, margin=0, sigma_reduction=0, label_balance=False) # based on reality : margin=0 & sigma_reduction=0(uniform) & label_balance=False
     binarily_noised_test_loader = DataLoader(binarily_noised_test_dataset, batch_size=args.batch_size, shuffle=False)
     
     # Sanity check
@@ -223,13 +254,10 @@ def main(args):
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
             predicted = (outputs >= 0.5).float()
-            #predicted_value, predicted_class = torch.max(outputs, dim=1)
             all_labels.extend(labels.cpu().numpy())
             all_predictions.extend(predicted.cpu().numpy())
-            #all_predictions.extend(predicted_class.cpu().numpy())
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-            #correct += (predicted_class == labels).sum().item()
 
     accuracy = 100 * correct / total
     print(f'Accuracy: {accuracy:.2f}%')
@@ -252,7 +280,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-
+# def __init__(self, data_loader, noise_type='gaussian', intensity_threshold=0.5, margin=0.0, sigma_reduction=0, label_balance=False):
     # Command-line arguments
     parser.add_argument('-d', '--dataset_type', type=str, required=False, default='cifar10', choices=['cifar10','cifar100'])
     parser.add_argument('-n', '--noise_type', type=str, required=False, default='gaussian', choices=['gaussian', 'snp', 'uniform', 'poisson'])
@@ -264,7 +292,9 @@ if __name__ == "__main__":
     parser.add_argument('--early_stopping', action='store_true', default=False)
     parser.add_argument('--lr_scheduler', action='store_true', default=False)
     parser.add_argument('--intensity_threshold', type=restricted_float, required=False, default=0.5)
-    parser.add_argument('--trim', type=restricted_float, required=False, default=0.1) #grading trim ratio (each grade's low 0.1 & high 0.1 (each 10%) does not exist)
+    parser.add_argument('--margin', type=restricted_float, required=False, default=0.0)
+    parser.add_argument('--sigma_reduction', type=int, required=False, default=0)
+    parser.add_argument('--label_balance', action='store_true', default=False)
     parser.add_argument('--username', type=str, required=False, default=None)
     parser.add_argument('--output_path_meta', type=str, required=False, default=path_result_meta)
     parser.add_argument('--output_path_image', type=str, required=False, default=path_result_image)
@@ -302,7 +332,9 @@ if __name__ == "__main__":
         f'early_stopping: {args.early_stopping}',
         f'lr_scheduler: {args.lr_scheduler}',
         f'intensity_threshold: {args.intensity_threshold}',
-        f'trim: {args.trim}',
+        f'margin: {args.margin}',
+        f'sigma_reduction: {args.sigma_reduction}',
+        f'label_balance: {args.label_balance}',
         f'username: {args.username}',
         f'output_path_meta: {args.output_path_meta}',
         f'output_path_image: {args.output_path_image}',
@@ -322,6 +354,7 @@ if __name__ == "__main__":
 
     # Sanity check: Print meta data
     if args.verbose:
+        print(f"xid : {xid}")
         print("## Meta data ##")
         for line in lines:
             print(line)
@@ -341,13 +374,23 @@ if __name__ == "__main__":
     try:
         start_time = time.time()
         main(args)
-        write_metadata(meta_file_path, 'SUCCESS')
+        write_metadata_status(meta_file_path, 'SUCCESS')
         print("SUCCESS")
     except KeyboardInterrupt:
-        write_metadata(meta_file_path, 'HALTED')
+        write_metadata_status(meta_file_path, 'HALTED')
         print("HALTED")
     except Exception as e:
-        write_metadata(meta_file_path, f'FAILED({e})')
+        
+        import sys
+        import traceback
+        print(f"Exception type: {type(e).__name__}")
+        print(f"Exception message: {e.args}")
+        
+        # 예외가 발생한 스택 트레이스를 출력
+        _, _, tb = sys.exc_info()
+        traceback.print_tb(tb)
+        
+        write_metadata_status(meta_file_path, f'FAILED({e})')
         print(f"FAILED({e})")
     finally:
         end_time = time.time()

@@ -63,13 +63,12 @@ Purpose: MNIST 데이터셋에서 기반한 노이즈 이미지를 시각화
 Parameters: 
   - pilot (bool): 실행 중인 프로그램이 파일럿인지 구분
   - loader (DataLoader): 시각화 샘플을 추출할 데이터로더
-  - path (str): 시각화 결과를 저장할 경로
+  - file_path (str): 시각화 결과를 저장할 경로
 Returns: None
-Notes: v1.0.1에서 인자명이 변경됨
-Last update: 2024-08-16 14:13 Fri.
-Last author: hwkang
+Last update: 2024-08-16 18:56 Fri.
+Last author: mwkim
 """
-def visualize_noisy_sample(pilot: bool, loader, path: str=None):
+def visualize_noisy_sample(pilot: bool, loader, file_path: str=None):
     # Unzip sample_batch to 10 samples
     x, y = next(iter(loader)) # [n, 64, 1, 28, 28] -> [64, 1, 28, 28]
     
@@ -88,7 +87,7 @@ def visualize_noisy_sample(pilot: bool, loader, path: str=None):
     else:
         # Output the image to path
         plt.tight_layout()
-        plt.savefig(path)
+        plt.savefig(file_path)
 
 
 """
