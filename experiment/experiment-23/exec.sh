@@ -29,13 +29,16 @@ datasets=("cifar10")
 noise_types=("gaussian" "snp" "uniform" "poisson")
 
 # 0으로 분류할 비율을 지정합니다.
-intensity_threshold=("0.7" "0.8" "0.9")
+intensity_threshold=("0.8")
+#intensity_threshold=("0.7" "0.8" "0.9")
 
 # trim 비율을 지정합니다.
-margins=("0.01" "0.025" "0.05")
+margins=("0.05")
+#margins=("0.01" "0.025" "0.05")
 
 # sigma_reduction 값을 지정합니다.
-sigma_reduction=("0" "3") #0 : 균등분포, 1이상 : 정규분포
+sigma_reduction=("3")
+#sigma_reduction=("0" "3") #0 : 균등분포, 1이상 : 정규분포
 
 balanceTF=("--label_balance" "")
 
