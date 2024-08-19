@@ -164,8 +164,8 @@ TODO:
 def get_classification_metrics(labels: list, predictions: list, average='weighted') -> tuple:
   precision = precision_score(labels, predictions, average=average)
   recall = recall_score(labels, predictions, average=average)
-  f1_score = f1_score(labels, predictions, average=average)
-  return (precision, recall, f1_score)
+  f1 = f1_score(labels, predictions, average=average)
+  return (precision, recall, f1)
 
 
 """
