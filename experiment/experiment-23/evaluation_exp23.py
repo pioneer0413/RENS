@@ -263,8 +263,8 @@ def main(args):
     print(f'Accuracy: {accuracy:.2f}%')
     
     visualize_confusion_matrix(pilot=False, all_labels=all_labels, all_predictions=all_predictions, num_label=2, noise_type=args.noise_type, accuracy=accuracy, file_path=accuracy_file_path)
-
-    precisions, recalls, f1_scores = calculate_confusion_metrics(all_labels, all_predictions, num_class=2)
+'''
+    precisions, recalls, f1_scores = get_classification_metrics(all_labels, all_predictions, 'weighted')
 
     for class_idx, precision, recall, f1_score in zip(list(range(2)), precisions, recalls, f1_scores):
         accuracy_record = {'class': class_idx,
@@ -274,20 +274,23 @@ def main(args):
                            'train_dataset_ratio': args.train_dataset_ratio,
                            'test_dataset_ratio': args.test_dataset_ratio,
                            'batch_size': args.batch_size,
-                           'epoch': args.epoch}
+                           'epoch': args.epoch,
+                           'margin': args.margin,
+                           'sigma_reduction': args.sigma_reduction,
+                           'label_balance': args.label_balance
+                          }
         save_record_to_csv(accuracy_csv_file_path, accuracy_record)
         print(f'Class [{class_idx}] | Pr.: {precision:.6f} | Re.: {recall:.6f} | F1.: {f1_score:.6f}')
-
+'''
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-# def __init__(self, data_loader, noise_type='gaussian', intensity_threshold=0.5, margin=0.0, sigma_reduction=0, label_balance=False):
     # Command-line arguments
     parser.add_argument('-d', '--dataset_type', type=str, required=False, default='cifar10', choices=['cifar10','cifar100'])
     parser.add_argument('-n', '--noise_type', type=str, required=False, default='gaussian', choices=['gaussian', 'snp', 'uniform', 'poisson'])
-    parser.add_argument('--train_dataset_ratio', type=restricted_float, required=False, default=1.0) # train_dataset_size
-    parser.add_argument('--test_dataset_ratio', type=restricted_float, required=False, default=1.0) # test_dataset_size
-    parser.add_argument('-b', '--batch_size', type=int, required=False, default=64) # batch_size
-    parser.add_argument('-e', '--epoch', type=int, required=False, default=50) # epoch
+    parser.add_argument('--train_dataset_ratio', type=restricted_float, required=False, default=1.0)
+    parser.add_argument('--test_dataset_ratio', type=restricted_float, required=False, default=1.0)
+    parser.add_argument('-b', '--batch_size', type=int, required=False, default=64)
+    parser.add_argument('-e', '--epoch', type=int, required=False, default=50)
     parser.add_argument('-p', '--pretrained', type=str, required=False, default=None)
     parser.add_argument('--early_stopping', action='store_true', default=False)
     parser.add_argument('--lr_scheduler', action='store_true', default=False)
@@ -380,18 +383,17 @@ if __name__ == "__main__":
         write_metadata_status(meta_file_path, 'HALTED')
         print("HALTED")
     except Exception as e:
-        
         import sys
         import traceback
-        print(f"Exception type: {type(e).__name__}")
-        print(f"Exception message: {e.args}")
-        
-        # 예외가 발생한 스택 트레이스를 출력
         _, _, tb = sys.exc_info()
-        traceback.print_tb(tb)
+        trace = traceback.format_tb(tb)
         
         write_metadata_status(meta_file_path, f'FAILED({e})')
-        print(f"FAILED({e})")
+        with open(meta_file_path, 'a') as file:
+            file.writelines(trace)
+            
+        print(f"FAILED({type(e).__name__}: {e})")
+        print(''.join(trace))
     finally:
         end_time = time.time()
         elapsed_time = end_time - start_time
