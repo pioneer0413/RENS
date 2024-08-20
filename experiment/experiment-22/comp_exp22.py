@@ -130,11 +130,18 @@ def main(args):
 
     # Setup hyperparameters
     dtype = torch.float
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    device = (
+        torch.device(f"cuda:{args.single_gpu}") if (torch.cuda.is_available() and args.single_gpu != None) else
+        torch.device("cuda") if torch.cuda.is_available() else
+        torch.device("cpu")
+    )
     model = SNN()
     if( args.pretrained is not None ):
         model.load_state_dict(torch.load(args.pretrained))
     model = model.to(device)
+    # to(device) 후 `DataParallel`로 모델 래핑
+    if (torch.cuda.device_count() > 1) and (args.single_gpu == None):
+        model = nn.DataParallel(model)
     criterion = nn.CrossEntropyLoss() # 다중분류
     optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999))
     num_epochs = args.epoch
@@ -172,7 +179,7 @@ def main(args):
                         spk_in = spikegen.latency(inputs.view(args.batch_size, -1), num_steps=args.num_steps)
                     case 'default':
                         spk_in = inputs.view(args.batch_size, -1)
-                print(spk_in.shape)
+                #print(spk_in.shape)
                 spk_rec, mem_rec = model(spk_in)
 
                 # 손실 계산
@@ -296,6 +303,7 @@ if __name__ == "__main__":
     parser.add_argument('--output_path_accuracy', type=str, required=False, default=path_result_accuracy)
     parser.add_argument('--verbose', action='store_true', default=False, help="Enable verbose mode")
     parser.add_argument('--memo', type=str, required=False, default=None)
+    parser.add_argument('--single_gpu', type=int, required=False, default=None, help="Enable singleGPU mode (only when its GPU is available / no input: parallel mode)")
 
     # Parsing arguments
     args = parser.parse_args()
@@ -331,7 +339,8 @@ if __name__ == "__main__":
         f'output_path_loss: {args.output_path_loss}',
         f'output_path_accuracy: {args.output_path_accuracy}',        
         f'verbose: {args.verbose}',
-        f'memo: {args.memo}'
+        f'memo: {args.memo}',
+        f'single_gpu: {args.single_gpu}'
     ]
     
     meta_file_path = f'{args.output_path_meta}/{xid:03d}_{exp_no}_meta_{args.dataset_type}_{args.encoding_type}_{current_time}.txt'

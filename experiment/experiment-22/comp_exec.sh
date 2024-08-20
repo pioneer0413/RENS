@@ -24,7 +24,7 @@ do
         for i in {1..1}
         do
             echo "실행 중: $dataset $noise $class $intensity $trim $epoch $early"
-            python temp_exp22.py -d $dataset --encoding_type $encode -e $epoch $early $lr --username mwkim --memo "test"
+            python comp_exp22.py -d $dataset --encoding_type $encode -e $epoch $early $lr --username mwkim --memo "test" --single_gpu 1
         done
     done
 done
