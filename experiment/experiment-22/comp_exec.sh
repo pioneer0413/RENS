@@ -4,7 +4,7 @@
 datasets=("mnist")
 
 # 인코딩 방법을 선언합니다.
-encoding=("default" "rate" "latency")
+encoding=("" "--encode rate --num_steps 10" "--encode latency --num_steps 10")
 
 # 에포크 수를 지정합니다.
 epoch=1000
@@ -23,8 +23,8 @@ do
     do
         for i in {1..1}
         do
-            echo "실행 중: $dataset $noise $class $intensity $trim $epoch $early"
-            python comp_exp22.py -d $dataset --encoding_type $encode -e $epoch $early $lr --username mwkim --memo "test" --single_gpu 1
+            echo "실행 중: $encoding"
+            python comp_exp22.py -d $dataset $encode -e $epoch $early $lr --username mwkim --memo "comp" --single_gpu 1
         done
     done
 done

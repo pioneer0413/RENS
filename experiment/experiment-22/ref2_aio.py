@@ -52,11 +52,45 @@ from model.LearningUtils import *
 
 '''
 START of model# Network Architecture
+num_inputs = 28*28
+num_hidden = 1000
+num_outputs = 10
 '''
+class SNN(nn.Module):
+    def __init__(self, inputs=28*28, hidden=1000, outputs=10, beta=0.95):
+        super().__init__()
+
+        # Initialize layers
+        self.fc1 = nn.Linear(inputs, hidden)
+        self.lif1 = snn.Leaky(beta=beta)
+        self.fc2 = nn.Linear(hidden, outputs)
+        self.lif2 = snn.Leaky(beta=beta)
+
+    def forward(self, x):
+
+        # Initialize hidden states at t=0
+        mem1 = self.lif1.init_leaky()
+        mem2 = self.lif2.init_leaky()
+        
+        # Record the final layer
+        spk2_rec = []
+        mem2_rec = []
+
+        for step in range(args.num_steps):
+            cur1 = self.fc1(x)
+            spk1, mem1 = self.lif1(cur1, mem1)
+            cur2 = self.fc2(spk1)
+            spk2, mem2 = self.lif2(cur2, mem2)
+            spk2_rec.append(spk2)
+            mem2_rec.append(mem2)
+
+        return torch.stack(spk2_rec, dim=0), torch.stack(mem2_rec, dim=0)
+
 # SNN 모델 정의
-class CNV_SNN(nn.Module):
+time_steps=1
+class SNNModel(nn.Module):
     def __init__(self):
-        super(CNV_SNN, self).__init__()
+        super(SNNModel, self).__init__()
         
         # 스파이킹 뉴런 레이어 설정
         self.conv1 = nn.Conv2d(1, 16, kernel_size=5)  # [16, 24, 24]
@@ -68,20 +102,31 @@ class CNV_SNN(nn.Module):
         self.lif2 = snn.Leaky(beta=0.9)
         self.lif3 = snn.Leaky(beta=0.9)
     
-    def forward(self, x):
-        # 결과를 누적하기 위한 텐서 초기화 / (might be) encoded input => x.size(0) is prohibited
-        outputs = torch.zeros(x.size(1), 10, device=x.device)
+    def forward(self, x, encoding_type):
+        # 결과를 누적하기 위한 텐서 초기화
+        outputs = torch.zeros(x.size(0), 10, device=x.device)
 
         mem1 = self.lif1.init_leaky()
         mem2 = self.lif2.init_leaky()
         mem3 = self.lif3.init_leaky()
+
+        match encoding_type:
+            case 'rate':
+                x_spikes = spikegen.rate(x, num_steps=time_steps)
+                x_spikes = x_spikes.view(time_steps, x.size(0), 1, 28, 28)
+            case 'latency':
+                x_spikes = spikegen.latency(x, num_steps=time_steps)
+                x_spikes = x_spikes.view(time_steps, x.size(0), 1, 28, 28)
+            case 'default':
+                # 스파이크는 아니나, 변수 통일을 위함
+                x_spikes = x.view(time_steps, x.size(0), 1, 28, 28)
         
         spk1_rec = []
         spk2_rec = []
         spk3_rec = []
 
-        for step in range(args.num_steps):
-            spk1, mem1 = self.lif1(self.conv1(x[step]), mem1)
+        for step in range(time_steps):
+            spk1, mem1 = self.lif1(self.conv1(x_spikes[step]), mem1)
             spk2, mem2 = self.lif2(self.conv2(spk1), mem2)
             spk2 = spk2.view(spk2.size(0), -1)
             spk3, mem3 = self.lif3(self.fc1(spk2), mem3)
@@ -140,12 +185,13 @@ def main(args):
         torch.device("cuda") if torch.cuda.is_available() else
         torch.device("cpu")
     )
-    model = CNV_SNN().to(device)
+    model = SNNModel()
+    #model = SNN()
     if( args.pretrained is not None ):
         model.load_state_dict(torch.load(args.pretrained))
     model = model.to(device)
     # to(device) 후 `DataParallel`로 모델 래핑
-    if (torch.cuda.device_count() > 1) and (args.single_gpu is None):
+    if (torch.cuda.device_count() > 1) and (args.single_gpu == None):
         model = nn.DataParallel(model)
     criterion = nn.CrossEntropyLoss() # 다중분류
     optimizer = optim.Adam(model.parameters(), lr=5e-4, betas=(0.9, 0.999))
@@ -160,9 +206,6 @@ def main(args):
     # early stopping
     early_stopping = EarlyStopping(patience=10, min_delta=0.001)
 
-    if (args.encode is not None) and (args.num_steps == 1):
-        print("[WARNING] Poor Accuracy: When num_steps is 1, rate encoding will not provide qualified input (and output) / latency coding will always emit spikes so input is no longer valuable.")
-
     # Training loop
     if( args.pretrained is None ):
         for epoch in range(num_epochs):
@@ -173,27 +216,33 @@ def main(args):
         
             for inputs, labels in modified_train_loader:
                 inputs, labels = inputs.to(device), labels.to(device)
+                #print(inputs.shape)
 
                 # 옵티마이저 초기화
                 optimizer.zero_grad()
 
-                
                 # 순전파
-                match args.encode:
+                output = model(inputs, args.encoding_type)
+                '''
+                match args.encoding_type:
                     case 'rate':
-                        enc_inputs = spikegen.rate(inputs, num_steps=args.num_steps)
+                        #spk_in = spikegen.rate(inputs.view(args.batch_size, -1), num_steps=args.num_steps).permute(1, 0, 2)
+                        spk_in = spikegen.rate(inputs, num_steps=args.num_steps)
                     case 'latency':
-                        enc_inputs = spikegen.latency(inputs, num_steps=args.num_steps)
-                    case _:
-                        # 스파이크는 아니나, 변수 통일을 위함
-                        enc_inputs = inputs
-                enc_inputs = enc_inputs.view(args.num_steps, inputs.size(0), 1, 28, 28)
-                output = model(enc_inputs)
-                
-                #output = model(inputs)
+                        spk_in = spikegen.latency(inputs.view(args.batch_size, -1), num_steps=args.num_steps)
+                    case 'default':
+                        spk_in = inputs.view(args.batch_size, -1)
+                print(spk_in.shape)
+                spk_rec, mem_rec = model(spk_in)
+                '''
 
                 # 손실 계산
                 loss = criterion(output, labels)
+                '''
+                loss = torch.zeros((1), dtype=dtype, device=device)
+                for step in range(args.num_steps):
+                    loss += criterion(mem_rec[step], labels)
+                '''
 
                 # 역전파
                 loss.backward()
@@ -202,6 +251,12 @@ def main(args):
                 optimizer.step()
 
                 running_loss += loss.item()
+                #_, predicted = output.max(1)
+                #total += labels.size(0)
+                #correct += predicted.eq(labels).sum().item()
+                '''
+                running_loss += loss.item() * inputs.size(0)
+                '''
         
             epoch_loss = running_loss / len(train_loader.dataset)
             
@@ -246,6 +301,7 @@ def main(args):
         visualize_epoch_loss(pilot=False, epoch_loss=epoch_loss_rec, file_path=loss_file_path)
 
     # Evaluation
+    print("evaluation start")
     model.eval()
     all_labels = []
     all_predictions = []
@@ -256,16 +312,7 @@ def main(args):
             inputs, labels = inputs.to(device), labels.to(device)
             
             # 모델에 데이터 전달
-            match args.encode:
-                case 'rate':
-                    enc_inputs = spikegen.rate(inputs, num_steps=args.num_steps)
-                case 'latency':
-                    enc_inputs = spikegen.latency(inputs, num_steps=args.num_steps)
-                case _:
-                    # 스파이크는 아니나, 변수 통일을 위함
-                    enc_inputs = inputs
-            enc_inputs = enc_inputs.view(args.num_steps, inputs.size(0), 1, 28, 28)
-            output = model(enc_inputs)
+            output = model(inputs, args.encoding_type)
             
             _, predicted_class = output.max(1)
 
@@ -274,6 +321,23 @@ def main(args):
             
             total += labels.size(0)
             correct += predicted_class.eq(labels).sum().item()
+            """
+            # 순전파
+            match args.encoding_type:
+                case 'rate':
+                    spk_in = spikegen.rate(inputs.view(inputs.size(0), -1), num_steps=args.num_steps)
+                case 'latency':
+                    spk_in = spikegen.latency(inputs.view(inputs.size(0), -1), num_steps=args.num_steps)
+                case 'default':
+                    spk_in = inputs.view(inputs.size(0), -1)
+            outputs, _ = model(spk_in)
+            # 손실 계산
+            _, predicted_class = outputs.sum(dim=0).max(1)
+            all_labels.extend(labels.cpu().numpy())
+            all_predictions.extend(predicted_class.cpu().numpy())
+            total += labels.size(0)
+            correct += (predicted_class == labels).sum().item()
+            """
 
     accuracy = 100 * correct / total
     print(f'Accuracy: {accuracy:.2f}%')
@@ -284,13 +348,11 @@ def main(args):
 
     for class_idx, precision, recall, f1_score in zip(list(range(10)), precisions, recalls, f1_scores):
         accuracy_record = {'class': class_idx,
-                           'accuracy': accuracy, 'precision': precision,
-                           'recall': recall, 'f1_score': f1_score,
+                           'accuracy': accuracy, 'precision': precision, 'recall': recall, 'f1_score': f1_score,
                            'dataset_type': args.dataset_type,
-                           'encode': args.encode,
+                           'encoding_type': args.encoding_type,
                            'train_dataset_ratio': args.train_dataset_ratio,
                            'test_dataset_ratio': args.test_dataset_ratio,
-                           'num_steps': args.num_steps,
                            'batch_size': args.batch_size,
                            'epoch': args.epoch}
         save_record_to_csv(accuracy_csv_file_path, accuracy_record)
@@ -301,13 +363,13 @@ if __name__ == "__main__":
 
     # Command-line arguments
     parser.add_argument('-d', '--dataset_type', type=str, required=False, default='mnist', choices=['mnist'])
-    parser.add_argument('--encode', type=str, required=False, default=None, choices=['rate','latency'])
+    parser.add_argument('--encoding_type', type=str, required=False, default='default', choices=['default','rate','latency'])
     parser.add_argument('--train_dataset_ratio', type=restricted_float, required=False, default=1.0) # train_dataset_size
     parser.add_argument('--test_dataset_ratio', type=restricted_float, required=False, default=1.0) # test_dataset_size
     parser.add_argument('-b', '--batch_size', type=int, required=False, default=64) # batch_size
     parser.add_argument('-e', '--epoch', type=int, required=False, default=50) # epoch
     parser.add_argument('-p', '--pretrained', type=str, required=False, default=None)
-    parser.add_argument('--num_steps', type=int, required=False, default=1, help="Set this each When Encode: num_steps>1 / No encode: num_steps=1")
+    parser.add_argument('--num_steps', type=int, required=False, default=10)
     parser.add_argument('--early_stopping', action='store_true', default=False)
     parser.add_argument('--lr_scheduler', action='store_true', default=False)
     parser.add_argument('--username', type=str, required=False, default=None)
@@ -339,13 +401,12 @@ if __name__ == "__main__":
     lines = [
         f'datetime: {current_time}',
         f'dataset_type: {args.dataset_type}',
-        f'encode: {args.encode}',
+        f'encoding_type: {args.encoding_type}',
         f'train_dataset_ratio: {args.train_dataset_ratio}',
         f'test_dataset_ratio: {args.test_dataset_ratio}',
         f'batch_size: {args.batch_size}',
         f'epoch: {args.epoch}',
         f'pretrained: {args.pretrained}',
-        f'num_steps: {args.num_steps}',
         f'early_stopping: {args.early_stopping}',
         f'lr_scheduler: {args.lr_scheduler}',
         f'username: {args.username}',
@@ -359,11 +420,11 @@ if __name__ == "__main__":
         f'single_gpu: {args.single_gpu}'
     ]
     
-    meta_file_path = f'{args.output_path_meta}/{xid:03d}_{exp_no}_meta_{args.dataset_type}_{args.encode}_{current_time}.txt'
-    image_file_path = f'{args.output_path_image}/{xid:03d}_{exp_no}_sample_{args.dataset_type}_{args.encode}_{current_time}.png'
-    model_file_path = f'{args.output_path_model}/{xid:03d}_{exp_no}_model_{args.dataset_type}_{args.encode}_{current_time}.weights'
-    loss_file_path = f'{args.output_path_loss}/{xid:03d}_{exp_no}_loss_{args.dataset_type}_{args.encode}_{current_time}.png'
-    accuracy_file_path = f'{args.output_path_accuracy}/{xid:03d}_{exp_no}_accuarcy_{args.dataset_type}_{args.encode}_{current_time}.png'
+    meta_file_path = f'{args.output_path_meta}/{xid:03d}_{exp_no}_meta_{args.dataset_type}_{args.encoding_type}_{current_time}.txt'
+    image_file_path = f'{args.output_path_image}/{xid:03d}_{exp_no}_sample_{args.dataset_type}_{args.encoding_type}_{current_time}.png'
+    model_file_path = f'{args.output_path_model}/{xid:03d}_{exp_no}_model_{args.dataset_type}_{args.encoding_type}_{current_time}.weights'
+    loss_file_path = f'{args.output_path_loss}/{xid:03d}_{exp_no}_loss_{args.dataset_type}_{args.encoding_type}_{current_time}.png'
+    accuracy_file_path = f'{args.output_path_accuracy}/{xid:03d}_{exp_no}_accuarcy_{args.dataset_type}_{args.encoding_type}_{current_time}.png'
     accuracy_csv_file_path = args.output_path_accuracy + f'{exp_no}_accuracy.csv'
     accuracy_summary_csv_file_path = args.output_path_accuracy + f'{exp_no}_accuracy_summary.csv'
 
