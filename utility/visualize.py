@@ -129,6 +129,9 @@ Parameters:
 Returns: None
 Last update: 2024-08-12 12:00 Mon.
 Last author: hwkang
+TODO:
+  - work: 타이틀을 매개변수로 입력 받도록 변경 >> (v1.0.2)
+    - reason: 메서드 범용성 향상
 """
 def visualize_confusion_matrix(pilot: bool, all_labels: list, all_predictions: list, num_label: int, noise_type: str, accuracy: int, file_path: str=None):
     cm = confusion_matrix(all_labels, all_predictions)
@@ -160,7 +163,9 @@ Notes:
 Last update: 2024-08-16 14:53 Fri.
 Last author: hwkang
 TODO: 
-  - statistic.py로 메서드 이전 >> (v1.0.2)
+  - work: statistic.py로 메서드 이전 >> (v1.0.2)
+  - work: 반환 받는 변수명 f1_score가 메서드 명과 동일해 오류 발생 >> (v1.0.2)
+  - work: average의 'weighted'를 'None' >> (v1.0.2)
 """
 def get_classification_metrics(labels: list, predictions: list, average='weighted') -> tuple:
   precision = precision_score(labels, predictions, average=average)
