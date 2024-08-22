@@ -29,18 +29,16 @@ datasets=("cifar10")
 noise_types=("gaussian" "snp" "uniform" "poisson")
 
 # 0으로 분류할 비율을 지정합니다.
-intensity_threshold=("0.8")
-#intensity_threshold=("0.7" "0.8" "0.9")
+intensity_threshold=("0.7" "0.8" "0.9")
 
 # trim 비율을 지정합니다.
-margins=("0.05")
-#margins=("0.01" "0.025" "0.05")
+margins=("0.025" "0.05" "0.075")
 
 # sigma_reduction 값을 지정합니다.
-sigma_reduction=("3")
-#sigma_reduction=("0" "3") #0 : 균등분포, 1이상 : 정규분포
+sigma_reduction=("0" "1" "2" "3" "4" "5") #0 : 균등분포, 1이상 : 정규분포
 
-balanceTF=("--label_balance" "")
+balanceTF=("")
+#balanceTF=("--label_balance" "")
 
 # 에포크 수를 지정합니다.
 epoch=1000
@@ -68,7 +66,7 @@ do
                         for i in {1..10}
                         do
                             echo "실행 중: python evaluation_exp23.py -d $dataset -n $noise --intensity_threshold $intensity --margin $margin -e $epoch $early $lr --sigma_reduction $sigma $balance --username mwkim"
-                            python evaluation_exp23.py -d $dataset -n $noise --intensity_threshold $intensity --margin $margin -e $epoch $early $lr --sigma_reduction $sigma $balance --username mwkim --memo "CHOOSE of label_balance"
+                            python evaluation_exp23.py -d $dataset -n $noise --intensity_threshold $intensity --margin $margin -e $epoch $early $lr --sigma_reduction $sigma $balance --username mwkim --memo "CHOOSE of margin & sigma_reduction"
                         done
                     done
                 done

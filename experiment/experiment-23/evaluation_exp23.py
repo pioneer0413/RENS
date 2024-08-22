@@ -155,7 +155,7 @@ def main(args):
     visualize_noisy_sample(pilot=False, loader=binarily_noised_test_loader, file_path=image_file_path)
 
     # Setup hyperparameters
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
     model = BNC_CNN()
     if( args.pretrained is not None ):
         model.load_state_dict(torch.load(args.pretrained))
@@ -263,8 +263,8 @@ def main(args):
     print(f'Accuracy: {accuracy:.2f}%')
     
     visualize_confusion_matrix(pilot=False, all_labels=all_labels, all_predictions=all_predictions, num_label=2, noise_type=args.noise_type, accuracy=accuracy, file_path=accuracy_file_path)
-'''
-    precisions, recalls, f1_scores = get_classification_metrics(all_labels, all_predictions, 'weighted')
+
+    precisions, recalls, f1_scores = get_classification_metrics(all_labels, all_predictions, None)
 
     for class_idx, precision, recall, f1_score in zip(list(range(2)), precisions, recalls, f1_scores):
         accuracy_record = {'class': class_idx,
@@ -281,7 +281,7 @@ def main(args):
                           }
         save_record_to_csv(accuracy_csv_file_path, accuracy_record)
         print(f'Class [{class_idx}] | Pr.: {precision:.6f} | Re.: {recall:.6f} | F1.: {f1_score:.6f}')
-'''
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # Command-line arguments
