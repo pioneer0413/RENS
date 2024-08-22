@@ -16,7 +16,10 @@ from torch.utils.data import Dataset, Subset, random_split
 
 
 """
-TODO: 함수 명세 작성 >> (v1.0.2)
+TODO: 
+  - work: 함수 명세 작성 >> (v1.0.2)
+  - work: 오타 수정 >> (v1.0.2)
+
 """
 def get_two_subsets_by_ratio(dataset: Dataset, split_ratio=8) -> list:
   if( 1 < split_ratio < 10 ):
