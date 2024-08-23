@@ -2,35 +2,38 @@
 **RENS: <ins>R</ins>etraining <ins>E</ins>fficient and <ins>N</ins>oise robust <ins>S</ins>NN framework**
 
 # Background and Motivation
-TODO: (direction) Briefly explain the background of the research, why this project is important, and what it aims to achieve.
+**TODO: (direction) Briefly explain the background of the research, why this project is important, and what it aims to achieve. >> (v1.1.0)**
 
 ## Background
-TODO: writing
+**TODO: writing >> (v1.1.0)**
 
 ## Motivation
-TODO: writing
+**TODO: writing >> (v1.1.0)**
 
 # Project Structure
 ## Directories
-- `experiment/`: TODO: writing
-- `model/`: TODO: writing
-- `temporary/`: TODO: writing
-- `utility/`: TODO: writing
+- `configuration`: **TODO: writing >> (v1.1.0)**
+- `experiment/`: **TODO: writing >> (v1.1.0)**
+- `model/`: **TODO: writing >> (v1.1.0)**
+- `validation`: **TODO: writing >> (v1.1.0)**
+- `utility/`: **TODO: writing >> (v1.1.0)**
 
 ## Branches
 Unless there is a particular reason, the branch except `main` is named `exp*`.<br>
 Each branch focuses on its experimental subject.<br>
 
 # Installation and Dependencies
-TODO: (optional) writing 
+**TODO: writing >> (v1.1.0)**
+
 ## Dependencies
-TODO: writing
+**TODO: writing >> (v1.1.0)**
+
 ## Installation
-TODO: writing 
+**TODO: writing >> (v1.1.0)**
 
 # Usage
 ## Running an Experiment
-TODO: (direction) Instructions on how to run the experiments.
+**TODO: (direction) Instructions on how to run the experiments. >> (v1.1.0)**
 
 # Result and Analysis
 The results on this page are summarized. If you want more detail about each experiment, then go to `exp/experiment-*/READMD.md`
@@ -47,13 +50,16 @@ The results on this page are summarized. If you want more detail about each expe
 TODO: (direction) Instructions on how others can contribute to the project.
 
 # License
-TODO: (direction) This project is licensed under ...
+**TODO: (direction) This project is licensed under ... >> (v1.1.0)**
 
 # References
-TODO: writing
+**TODO: writing >> (v1.1.0)**
 
 # Citation
-TODO: writing
+**TODO: writing >> (v1.1.0)**
 
 # Contact
 For any questions, please contact [Hyunwoo KANG](mailto:hw.kang@knu.ac.kr)
+
+---
+최종 작성자: Hyunwoo KANG (2024-08-23 16:36 Fri.) (v1.0.2)

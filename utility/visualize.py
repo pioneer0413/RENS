@@ -5,8 +5,9 @@ Purpose: 입력값에 대한 시각화를 수행하는 함수의 모음
 Change log:
   - 2024-08-12: 코드 설명 주석 추가 (v1.0.0)
   - 2024-08-16: get_classfication_metrics 함수 변경 및 save_to_csv 함수 주석 변경 (v1.0.1)
+  - 2024-08-23: Deprecated Warning 코드 추가 (v1.0.2)
 
-Last update: 2024-08-12 12:27 Mon.
+Last update: 2024-08-23 08:18 Fri.
 Last author: hwkang
 """
 
@@ -33,6 +34,7 @@ Last update: 2024-08-12 11:39 Mon.
 Last author: hwkang
 """
 def get_next_xid(path: str) -> int:
+    print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
     max_id = -1
     pattern = re.compile(r'^(\d+)_')
     for filename in os.listdir(path):
@@ -53,6 +55,7 @@ Last update: 2024-08-12 11:40 Mon.
 Last author: hwkang
 """
 def get_current_time_str() -> str:
+    print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
     now = datetime.now()
     formatted_time = now.strftime("%y-%m-%d_%H-%M-%S")
     return formatted_time
@@ -70,6 +73,7 @@ Last update: 2024-08-16 14:13 Fri.
 Last author: hwkang
 """
 def visualize_noisy_sample(pilot: bool, loader, path: str=None):
+    print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
     # Unzip sample_batch to 10 samples
     x, y = next(iter(loader)) # [n, 64, 1, 28, 28] -> [64, 1, 28, 28]
     
@@ -102,6 +106,7 @@ Last update: 2024-08-12 11:55 Mon.
 Last author: hwkang
 """
 def visualize_epoch_loss(pilot: bool, epoch_loss: list, file_path: str=None):
+    print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
     plt.figure(figsize=(10,6))
     plt.plot(epoch_loss)
     plt.title('Epoch Loss Over Time')
@@ -134,6 +139,7 @@ TODO:
     - reason: 메서드 범용성 향상
 """
 def visualize_confusion_matrix(pilot: bool, all_labels: list, all_predictions: list, num_label: int, noise_type: str, accuracy: int, file_path: str=None):
+    print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
     cm = confusion_matrix(all_labels, all_predictions)
     labels = list(range(num_label))
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
@@ -168,10 +174,11 @@ TODO:
   - work: average의 'weighted'를 'None' >> (v1.0.2)
 """
 def get_classification_metrics(labels: list, predictions: list, average='weighted') -> tuple:
-  precision = precision_score(labels, predictions, average=average)
-  recall = recall_score(labels, predictions, average=average)
-  f1_score = f1_score(labels, predictions, average=average)
-  return (precision, recall, f1_score)
+    print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
+    precision = precision_score(labels, predictions, average=average)
+    recall = recall_score(labels, predictions, average=average)
+    f1_score = f1_score(labels, predictions, average=average)
+    return (precision, recall, f1_score)
 
 
 """
@@ -188,6 +195,7 @@ TODO:
     - reason: 시각화 메서드의 성격을 벗어남
 """
 def save_record_to_csv(file_path: str, record: list):
+    print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
     file_exists = os.path.isfile(file_path)
 
     with open(file_path, 'a', newline='') as csvfile:
