@@ -5,8 +5,9 @@ Purpose: 데이터에 잡음을 더해 노이즈 데이터를 생성하는 함�
 Change log:
   - 2024-08-12: 코드 설명 주석 추가 (v1.0.0)
   - 2024-08-16: GradedNoisedDataset 클래스 주석 추가 (v1.0.1)
+  - 2024-08-22: Deprecated Warning 코드 추가 (v1.0.2)
 
-Last update: 2024-08-16 13:43 Fri.
+Last update: 2024-08-22 20:23 Thu.
 Last author: hwkang
 """
 
@@ -32,6 +33,7 @@ Last update: 2024-08-12 13:05 Mon.
 Last author: hwkang
 """
 def generate_gaussian(image: np.ndarray, c: int, w: int, h: int, intensity: float):
+    print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
     np_noise = np.random.randn(c, w, h) * intensity
     np_noisy_image = image + np_noise + 1e-7 # Preventing bias
     return np_noisy_image
@@ -48,6 +50,7 @@ Last update: 2024-08-12 13:08 Mon.
 Last author: hwkang
 """
 def generate_salt_and_pepper(image: np.ndarray, intensity: float):
+    print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
     noisy_image = image.copy()
     salt_prob = pepper_prob = intensity
     
@@ -77,6 +80,7 @@ Last update: 2024-08-12 13:10 Mon.
 Last author: hwkang
 """
 def generate_uniform(image: np.ndarray, intensity: float):
+    print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
     noise = np.random.uniform(-1.0, 1.0, image.shape)
     noisy_image = image + noise * intensity
     return noisy_image
@@ -96,6 +100,7 @@ Last update: 2024-08-12 13:11 Mon.
 Last author: hwkang
 """
 def generate_poisson(image: np.ndarray, c: int, w: int, h: int, intensity: float):
+    print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
     np_noise = np.random.poisson(size=(c,w,h))
     
     # Normalize to [-1, 1] range
@@ -118,6 +123,7 @@ Last update: 2024-08-12 13:22 Mon.
 Last author: hwkang
 """
 def generate_one_noisy_image(original_image: torch.Tensor, intensity: float=0.5, noise_type: str='gaussian'):
+    print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
     np_original_image = original_image.numpy()
     c, w, h = np_original_image.shape
 
