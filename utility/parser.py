@@ -80,7 +80,7 @@ class RensArgumentParser:
         ### 훈련 & 평가 진행 여부
         self.parser.add_argument('--enable_training', action='store_true', default=True, help="Enable training. (Default: False)")
         self.parser.add_argument('--enable_validation', action='store_true', default=False, help="Enable validation. (Default: False)")
-        self.parser.add_argument('--enable_test', action='store_true', default=True, help="Enable test. (Default: True)")
+        self.parser.add_argument('--enable_test', action='store_false', default=True, help="Enable test. (Default: True)")
         ##*
 
         ### 결과 파일 저장 여부
