@@ -80,7 +80,7 @@ def normalize(tensor):
     normalized_tensor = (tensor-vmin)/(vmax-vmin)
     return normalized_tensor
 
-# TODO: 유틸리티에 추가 >> (v1.0.2)
+# TODO: 유틸리티에 추가 >> (v1.0.2) >> 완료
 def generate_noisy_batch(inputs, noise_intensity, device):
     noise = torch.randn(size=inputs.shape) * noise_intensity
     noise = noise.to(device)

@@ -4,9 +4,10 @@ Purpose: 범용적으로 활용되는 메서드 모음
 
 Change log:
   - 2024-08-12: 코드 설명 주석 추가 (v1.0.0)
-  - 2024-08-16: write_metadata 함수명 변경 (v1.0.1)
+  - 2024-08-16: write_metadata 메서드명 변경 (v1.0.1)
+  - 2024-08-22: ensure_directories 메서드 추가 (v1.0.2)
 
-Last update: 2024-08-16 14:00 Mon.
+Last update: 2024-08-23 16:50 Fri.
 Last author: hwkang
 """
 
@@ -29,6 +30,18 @@ def ensure_directory(path: str):
     if not os.path.exists(path):
         os.makedirs(path)
         print(f"Directory created: {path}")
+
+"""
+Purpose: 전달된 경로 상에 디렉터리가 존재하는 지 보장
+Parameters: 
+ - *paths (str): 보장할 디렉터리 경로 (가변 길이 인자)
+Returns: None
+Last update: 2024-08-23 16:48 Fri.
+Last author: hwkang
+"""
+def ensure_directories(*paths):
+    for path in paths:
+        ensure_directory(path)
 
 
 """
