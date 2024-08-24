@@ -6,9 +6,10 @@ Change log:
   - 2024-08-12: 코드 설명 주석 추가 (v1.0.0)
   - 2024-08-16: get_classfication_metrics 함수 변경 및 save_to_csv 함수 주석 변경 (v1.0.1)
   - 2024-08-23: Deprecated Warning 코드 추가 (v1.0.2)
+  - 2024-08-24: visualization.py에서 정상작동하도록 수정된 내용 반영 (hotfix)
 
-Last update: 2024-08-23 08:18 Fri.
-Last author: hwkang
+Last update: 2024-08-24 15:23 Sat. 
+Last author: mwkim
 """
 
 
@@ -66,13 +67,12 @@ Purpose: MNIST 데이터셋에서 기반한 노이즈 이미지를 시각화
 Parameters: 
   - pilot (bool): 실행 중인 프로그램이 파일럿인지 구분
   - loader (DataLoader): 시각화 샘플을 추출할 데이터로더
-  - path (str): 시각화 결과를 저장할 경로
+  - file_path (str): 시각화 결과를 저장할 경로
 Returns: None
-Notes: v1.0.1에서 인자명이 변경됨
-Last update: 2024-08-16 14:13 Fri.
-Last author: hwkang
+Last update: 2024-08-24 15:22 Sat.
+Last author: mwkim
 """
-def visualize_noisy_sample(pilot: bool, loader, path: str=None):
+def visualize_noisy_sample(pilot: bool, loader, file_path: str=None)
     print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
     # Unzip sample_batch to 10 samples
     x, y = next(iter(loader)) # [n, 64, 1, 28, 28] -> [64, 1, 28, 28]
@@ -92,7 +92,7 @@ def visualize_noisy_sample(pilot: bool, loader, path: str=None):
     else:
         # Output the image to path
         plt.tight_layout()
-        plt.savefig(path)
+        plt.savefig(file_path)
 
 
 """
@@ -161,24 +161,24 @@ Parameters:
 Returns: 
   - precision (float): 클래스 별 precision
   - recall (float): 클래스 별 recall
-  - f1_score (float): 클래스 별 f1-score
+  - f1 (float): 클래스 별 f1-score
 Notes:
   - num_class 삭제
   - 튜플 내 원소 자료형 변경 list -> float
   - 함수명 변경 calculate_confusion_metrics -> get_classification_metrics (v1.0.1)
-Last update: 2024-08-16 14:53 Fri.
-Last author: hwkang
+Last update: 2024-08-24 15:23 Sat.
+Last author: mwkim
 TODO: 
   - work: statistic.py로 메서드 이전 >> (v1.0.2)
   - work: 반환 받는 변수명 f1_score가 메서드 명과 동일해 오류 발생 >> (v1.0.2)
   - work: average의 'weighted'를 'None' >> (v1.0.2)
 """
-def get_classification_metrics(labels: list, predictions: list, average='weighted') -> tuple:
+def get_classification_metrics(labels: list, predictions: list, average=None) -> tuple:
     print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
     precision = precision_score(labels, predictions, average=average)
     recall = recall_score(labels, predictions, average=average)
-    f1_score = f1_score(labels, predictions, average=average)
-    return (precision, recall, f1_score)
+    f1 = f1_score(labels, predictions, average=average)
+    return (precision, recall, f1)
 
 
 """

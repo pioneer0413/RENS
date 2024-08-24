@@ -96,8 +96,9 @@ class RensArgumentParser:
         #### 추가 기록
         self.parser.add_argument('--username', type=str, default=None, help=f"Name of executor. (Default: None)")
         self.parser.add_argument('--notes', type=str, default=None)
-        self.parser.add_argument('--prefix', type=str, default=None)
-        self.parser.add_argument('--suffix', type=str, default=None)
+        self.parser.add_argument('--prefix', type=str, default='')
+        self.parser.add_argument('--body', type=str, default='')
+        self.parser.add_argument('--suffix', type=str, default='')
         ###*      
         ##*
     
