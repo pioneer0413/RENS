@@ -8,7 +8,7 @@ Change log:
   - 2024-08-23: Deprecated Warning 코드 추가 (v1.0.2)
   - 2024-08-24: visualization.py에서 정상작동하도록 수정된 내용 반영 (hotfix)
 
-Last update: 2024-08-24 15:23 Sat.
+Last update: 2024-08-24 15:23 Sat. 
 Last author: mwkim
 """
 
