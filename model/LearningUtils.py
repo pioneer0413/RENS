@@ -6,6 +6,8 @@ class EarlyStopping:
             patience (int): 성능 개선 없이 기다릴 에폭 수
             min_delta (float): 개선으로 간주할 최소 변화
         """
+        print("DEPRECATED WARNING: This class will be unable since (v1.1.0).")
+        
         self.patience = patience
         self.min_delta = min_delta
         self.counter = 0
