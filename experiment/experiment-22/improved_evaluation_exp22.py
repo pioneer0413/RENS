@@ -64,6 +64,25 @@ from model.learning_utility import *
 '''
 START of synthesization
 '''
+class SimpleDataset(Dataset):
+    def __init__(self, data_loader, device):
+        self.x=[]
+        self.y=[]
+
+        for image, label in data_loader:
+            image, label = image.to(device), label.to(device)
+            image, label = image.squeeze(0), label.squeeze(0)
+            self.x.append(image)
+            self.y.append(label)
+
+    def __len__(self):
+        return len(self.x)
+
+    def __getitem__(self, idx):
+        x_data = self.x[idx]
+        y_data = self.y[idx]
+        return x_data, y_data
+
 class SpecificallyNoisedDataset(Dataset):
     def __init__(self, data_loader, device, noise_type='gaussian', intensity=0.5):
         self.x=[]
@@ -101,7 +120,7 @@ class CNV_SNN(nn.Module):
         self.fc1 = nn.Linear(32 * 20 * 20, 10)  # Fully connected layer, 32 * 20 * 20 = 12800
         
         # snntorch의 Leaky Integrate and Fire (LIF) 뉴런을 사용
-        if args.memo is None:
+        if args.loss_function is None:
             self.lif1 = snn.Leaky(beta=0.9)
             self.lif2 = snn.Leaky(beta=0.9)
             self.lif3 = snn.Leaky(beta=0.9)
@@ -113,7 +132,7 @@ class CNV_SNN(nn.Module):
     def forward(self, x, encoding):
         # 결과를 누적하기 위한 텐서 초기화 / (might be) encoded input => x.size(0) is prohibited
         # for pytorch loss function
-        if args.memo is None:
+        if args.loss_function is None:
             outputs = torch.zeros(x.size(1), 10, device=x.device)
 
         mem1 = self.lif1.init_leaky()
@@ -123,17 +142,16 @@ class CNV_SNN(nn.Module):
         spk3_rec = []
 
         if encoding == 'latency':
-            step = 0
-            fired = False
-            while step < args.num_steps and not fired:
+            for step in range(args.num_steps):
                 spk1, mem1 = self.lif1(self.conv1(x[step]), mem1)
                 spk2, mem2 = self.lif2(self.conv2(spk1), mem2)
                 spk2 = spk2.view(spk2.size(0), -1)
                 spk3, mem3 = self.lif3(self.fc1(spk2), mem3)
                 spk3_rec.append(spk3)
                 if spk3.any():
-                    fired = True
-                step += 1
+                    for _ in range(args.num_steps - step - 1):
+                        spk3_rec.append(torch.zeros_like(spk3))
+                    break
 
         else:
             for step in range(args.num_steps):
@@ -144,7 +162,7 @@ class CNV_SNN(nn.Module):
                 spk3_rec.append(spk3)
 
         # for pytorch loss function
-        if args.memo is None:
+        if args.loss_function is None:
             outputs = torch.stack(spk3_rec, dim=1).sum(dim=1)  # 타임 스텝 차원을 합쳐서 최종 출력 계산
         else:
             outputs = torch.stack(spk3_rec)
@@ -193,7 +211,7 @@ def main(args):
     # to(device) 후 `DataParallel`로 모델 래핑
     if (torch.cuda.device_count() > 1) and (args.single_gpu is None):
         model = nn.DataParallel(model)
-    match args.memo:
+    match args.loss_function:
         case 'ce_count_loss()':
             criterion = SF.ce_count_loss()
         case 'ce_max_membrane_loss()':
@@ -208,7 +226,8 @@ def main(args):
     if( args.pretrained is None ):
         train_dataset = get_single_subset_by_ratio(train_dataset, args.train_dataset_ratio)
         train_loader = DataLoader(dataset=train_dataset, batch_size=1, shuffle=False, drop_last=True)
-        modified_train_dataset = SpecificallyNoisedDataset(train_loader, device, args.noise_type, args.intensity)
+        #modified_train_dataset = SpecificallyNoisedDataset(train_loader, device, args.noise_type, args.intensity)
+        modified_train_dataset = train_dataset
         modified_train_loader = DataLoader(dataset=modified_train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
     # On test dataset 
     test_dataset = get_single_subset_by_ratio(test_dataset, args.test_dataset_ratio)
@@ -226,7 +245,7 @@ def main(args):
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
 
     # early stopping
-    early_stopping = EarlyStopping(patience=20, min_delta=0.001)
+    early_stopping = EarlyStopping(patience=20, min_delta=0.0001)
 
     if (args.encode is not None) and (args.num_steps == 1):
         print("[WARNING] Poor Accuracy: When num_steps is 1, rate encoding will not provide qualified input (and output) / latency coding will always emit spikes so input is no longer valuable.")
@@ -329,7 +348,7 @@ def main(args):
                     enc_inputs = inputs
             enc_inputs = enc_inputs.view(args.num_steps, inputs.size(0), 1, 28, 28)
             output = model(enc_inputs, args.encode)
-            if args.memo is None:
+            if args.loss_function is None:
                 _, predicted_class = output.max(1)
     
                 all_labels.extend(labels.cpu().numpy())
@@ -395,6 +414,7 @@ if __name__ == "__main__":
     parser.add_argument('--memo', type=str, required=False, default=None)
     parser.add_argument('--single_gpu', type=int, required=False, default=None, help="Enable singleGPU mode (only when its GPU is available / no input: parallel mode)")
     parser.add_argument('--intensity', type=restricted_float, required=False, default=0.5)
+    parser.add_argument('--loss_function', type=str, required=False, default=None)
 
     # Parsing arguments
     args = parser.parse_args()
@@ -434,7 +454,8 @@ if __name__ == "__main__":
         f'verbose: {args.verbose}',
         f'memo: {args.memo}',
         f'single_gpu: {args.single_gpu}',
-        f'intensity: {args.intensity}'
+        f'intensity: {args.intensity}',
+        f'loss_function: {args.loss_function}'
     ]
     
     meta_file_path = f'{args.output_path_meta}/{xid:03d}_{exp_no}_meta_{args.dataset_type}_{args.encode}_{current_time}.txt'
