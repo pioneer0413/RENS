@@ -4,9 +4,10 @@ Purpose: 명령행 매개변수를 받아 처리하는 클래스
 
 Change log:
   - 2024-08-23: 파일 생성 및 클래스 구현 (v1.0.2)
+  - 2024-08-27: common.py 접근 불가 현상 수정 (hotfix)
 
-Last update: 2024-08-23 12:58 Fri.
-Last author: hwkang
+Last update: 2024-08-27 15:05 Tue.
+Last author: mwkim
 """
 
 
@@ -14,7 +15,7 @@ Last author: hwkang
 # Imports
 #
 import argparse
-from common import restricted_float
+from .common import restricted_float
 from collections.abc import Iterable
 
 """
