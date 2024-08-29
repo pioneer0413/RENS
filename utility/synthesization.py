@@ -221,6 +221,52 @@ def generate_noisy_data(data, intensity, noise_type, rescale: bool=True,
 
 
 """
+Purpose: 각 종류의 잡음이 추가된 단일 데이터 생성
+Parameters:
+  - data (Tensor or ndarray): 원본 데이터
+  - gaussian, snp, uniform, poisson (float): 각 종류의 잡음의 세기
+  - rescale (bool): 데이터의 최소/최대 범위로 스케일링
+  - normalize (bool): [0.0, 1.0] 범위로 정규화 여부
+  - device (torch.device)
+Returns: 
+  - noisy_data (Tensor or ndarray): 한 종류의 잡음만이 포함된 데이터
+Last update: 2024-08-29 17:12 Thu.
+Last author: mwkim
+"""
+def generate_complexly_noised_data(data, gaussian: float=0.0, snp: float=0.0, uniform: float=0.0, poisson: float=0.0,
+                                  rescale: bool=True, normalize: bool=False, device: torch.device=None):
+    ### 입력 데이터 자료형 확인
+    if isinstance( data, torch.Tensor ):
+        data = generate_gaussian(data=data, intensity=gaussian, 
+                                       rescale=rescale, device=device)
+        data = generate_salt_and_pepper(data=data, intensity=snp) # No need device
+        data = generate_uniform(data=data, intensity=uniform, 
+                                      rescale=rescale, device=device)
+        data = generate_poisson(data=data, intensity=poisson, 
+                                          rescale=rescale, device=device)
+        noisy_data = data
+    elif isinstance( data, np.ndarray ):
+        data = generate_gaussian(data=data, intensity=gaussian, 
+                                       rescale=rescale)
+        data = generate_salt_and_pepper(data=data, intensity=snp)
+        data = generate_uniform(data=data, intensity=uniform, 
+                                      rescale=rescale)
+        data = generate_poisson(data=data, intensity=poisson, 
+                                      rescale=rescale)
+        noisy_data = data
+    else:
+        raise TypeError("ERROR: The type of data is incorrect. Expected torch.Tensor or numpy.ndarray.")
+    ###
+
+    ### 정규화
+    if normalize is True:
+        max_val, min_val = noisy_data.max(), noisy_data.min()
+        noisy_data = ( noisy_data - min_val )/( max_val - min_val )
+    ###
+    return noisy_data
+
+
+"""
 TODO: 클래스 주석 달기 >> (v1.0.3)
 """
 class NoisedDataset(Dataset):
