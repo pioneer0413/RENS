@@ -86,7 +86,7 @@ TODO: 클래스 주석 달기 >> (v1.0.2)
 """
 class BNC_CNN(nn.Module):
     def __init__(self):
-        print("DEPRECATED WARNING: This class will be unable since (v1.2.0).")
+        print("DEPRECATED WARNING: This(BNC_CNN) class will be unable since (v1.2.0).")
         super(BNC_CNN, self).__init__()
         # 첫 번째 합성곱 레이어
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, padding=1)
@@ -120,7 +120,7 @@ TODO: 클래스 주석 달기 >> (v1.0.2)
 """
 class MNC_CNN(nn.Module):
     def __init__(self):
-        print("DEPRECATED WARNING: This class will be unable since (v1.2.0).")
+        print("DEPRECATED WARNING: This(MNC_CNN) class will be unable since (v1.2.0).")
         super(MNC_CNN, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1)
@@ -163,7 +163,7 @@ Last author: mwkim
 """
 class CLS_CNN(nn.Module):
     def __init__(self, num_classes=5):
-        print("DEPRECATED WARNING: This class will be unable since (v1.2.0).")
+        print("DEPRECATED WARNING: This(CLS_CNN) class will be unable since (v1.2.0).")
         # num_classes : 최종 출력층의 수. input을 classify할 class의 수
         super(CLS_CNN, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, padding=1)
