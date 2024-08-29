@@ -6,9 +6,10 @@ Change log:
   - 2024-08-12: 코드 설명 주석 추가 (v1.0.0)
   - 2024-08-16: get_subset 메서드명 변경 및 메서드 3개 추가 (v1.0.1)
   - 2024-08-22: Deprecated Warning 코드 추가 (v1.0.2)
+  - 2024-08-29: 들여쓰기 수정 (hotfix)
 
-Last update: 2024-08-22 20:15 Thu.
-Last author: hwkang
+Last update: 2024-08-29 16:14 Thu.
+Last author: mwkim
 """
 
 
@@ -25,9 +26,9 @@ def get_two_subsets_by_ratio(dataset: Dataset, split_ratio=8) -> list:
     print("DEPRECATED WARNING: This method will be unable since (v1.1.0).")
     
     if( 1 < split_ratio < 10 ):
-    split_ratio = split_ratio / 10
+        split_ratio = split_ratio / 10
     elif( split_ratio <= 0 or split_ratio >= 10 ):
-    raise ValueError("split_ratio must be larger than 0 and smaller than 10")
+        raise ValueError("split_ratio must be larger than 0 and smaller than 10")
     
     dataset_size = len(dataset)
     train_size = int(split_ratio * dataset_size)
@@ -74,6 +75,6 @@ def get_multiple_subsets_by_ratio(dataset: Dataset, num_split: int=8) -> list:
     split_lengths = [base_length] * num_split
     
     for i in range(total_length % num_split):
-    split_lengths[i] += 1
+        split_lengths[i] += 1
     
     return random_split(dataset, split_lengths)
