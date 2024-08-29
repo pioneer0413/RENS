@@ -74,7 +74,7 @@ class InheritedRensArgumentParser(RensArgumentParser):
         ### 부모 파서의 인자 처리 정보를 받아옴, 충돌 시 아래 추가할 것임을 명시
         self.parser = argparse.ArgumentParser(parents=[self.parser], conflict_handler='resolve')
         ##*
-        self.parser.add_argument('-m', '--model', type=str, default='resnet101', choices=['cnn', 'resnet50', 'resnet101', 'snn1', 'snn2', 'snn3'], help="Type of a model to use. (Default: resnet101)")
+        self.parser.add_argument('-m', '--model', type=str, default='resnet101', choices=['cnn', 'resnet50', 'resnet101', 'snn1', 'snn2', 'snn3'], help="Type of a model to use. (Default: resnet101)") # >> choice 제거
         self.parser.add_argument('--noise_training',action='store_true',
                                  default=False)
         self.parser.add_argument('--noise_test', action='store_true',
@@ -88,6 +88,7 @@ class InheritedRensArgumentParser(RensArgumentParser):
         self.parser.add_argument('-d', '--dataset_type', type=str, default='cifar10', choices=['cifar10, cifar100', 'mnist', 'nmnist'])
         self.parser.add_argument('--device_id', type=int, default=0)
 
+# TODO: 유틸리티 synthesization에 추가
 def generate_noisy_data_with_psnr(data, target_psnr):
     max_pixel = 1.0  # PyTorch 텐서의 경우 0과 1 사이로 정규화된 이미지라고 가정
     mse_target = (max_pixel ** 2) / (10 ** (target_psnr / 10))
@@ -103,6 +104,7 @@ def generate_noisy_data_with_psnr(data, target_psnr):
     
     return noisy_image
 
+# TODO: 유틸리티 preprocessing에 추가
 class MyNormalize:
     def __init__(self):
         pass
@@ -110,6 +112,7 @@ class MyNormalize:
         vmax, vmin = data.max(), data.min()
         return (data-vmin)/(vmax-vmin)
 
+# TODO: 유틸리티 visualization에 추가
 def visualize_loss(pilot: bool, train_loss: list, valid_loss, path: str=None):
     plt.figure(figsize=(10,6))
     plt.plot(train_loss, label='Training Loss')
@@ -124,6 +127,7 @@ def visualize_loss(pilot: bool, train_loss: list, valid_loss, path: str=None):
     else:
         plt.savefig(path)
 
+# TODO: 모델 learning_utility에 추가
 def forward_pass(net, data, model_type='snn'):
     spk_rec = []
     if model_type == 'snn':
@@ -149,7 +153,7 @@ def main(args):
                                     MyNormalize()])
     ##*
 
-    ### 데이터셋 종류에 따라 다르게 준비
+    ### 데이터셋 종류에 따라 다르게 준비 >> 클래스로 변경
     if( args.dataset_type == 'cifar10' ):
         train_dataset = datasets.CIFAR10(root=path_dataset, train=True, transform=transform, download=False)
         test_dataset = datasets.CIFAR10(root=path_dataset, train=False, transform=transform, download=False)
