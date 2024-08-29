@@ -30,6 +30,9 @@ See also:
     - 인자 변경 또는 추가에 방법은 다음을 참고 (validation/validation_parser.py:[13:23])
 Last update: 2024-08-23 13:12 Fri.
 Last author: hwkang
+TODO:
+    - work: enable_*를 disable_*로 변경
+        - reason: 동작과 이름이 일치하지 않음
 """
 class RensArgumentParser:
 
@@ -79,9 +82,9 @@ class RensArgumentParser:
         ##*
 
         ### 훈련 & 평가 진행 여부
-        self.parser.add_argument('--enable_training', action='store_true', default=True, help="Enable training. (Default: False)")
-        self.parser.add_argument('--enable_validation', action='store_true', default=False, help="Enable validation. (Default: False)")
-        self.parser.add_argument('--enable_test', action='store_true', default=True, help="Enable test. (Default: True)")
+        self.parser.add_argument('--disable_training', action='store_true', default=False, help="Enable training. (Default: False)")
+        self.parser.add_argument('--disable_validation', action='store_true', default=False, help="Enable validation. (Default: False)")
+        self.parser.add_argument('--disable_test', action='store_true', default=False, help="Enable test. (Default: False)")
         ##*
 
         ### 결과 파일 저장 여부
@@ -110,7 +113,7 @@ class RensArgumentParser:
     def get_argument_info(self, output_format='string'):
         if self.args is not None:
             
-            args_dict = vars(self.args)
+            args_dict = vars(self.args).copy()
             
             ### 문자열로 받고자 하는 경우
             if output_format == 'string':

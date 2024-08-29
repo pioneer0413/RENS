@@ -1,32 +1,25 @@
 # Experiment no.09 [regular]
 
 #
-# Paths
+# Constants
 #
 from pathlib import Path
 exp_no = 'exp09' # NOTICE: Change at each experiment!
 directory = current_file_path = Path(__file__).resolve()
 path_root = str(directory.parent.parent.parent) + '/'
-path_dataset = path_root + 'dataset/'
-path_result = path_root + 'result/'
-path_result_root = path_result + exp_no + '/'
-path_result_image = path_result_root + 'image/'
-path_result_model = path_result_root + 'model/'
-path_result_loss = path_result_root + 'loss/'
-path_result_metrics = path_result_root + 'metrics/'
-path_result_meta = path_result_root + 'meta/'
-path_utility = path_root + 'utility/'
 
 #
 # Imports
 #
+
+# Fundamentals
+import os
 import sys
 sys.path.append(path_root)
-sys.path.append(path_dataset)
-sys.path.append(path_result)
-sys.path.append(path_utility)
+sys.path.append(os.path.join(path_root,'utility/'))
+sys.path.append(os.path.join(path_root,'model/'))
 
-# PyTorch family
+# PyTorchs
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -35,424 +28,564 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, random_split
 from torch.utils.data import DataLoader
 
+import torchvision
 from torchvision import datasets, transforms
 from torchvision.models import resnet50, resnet101
 
-# SnnTorch family
+# SnnTorchs
+import snntorch as snn
+from snntorch import surrogate
+#from snntorch import backprop # Deprecated
+from snntorch import functional as SF
+from snntorch import utils
+from snntorch import spikeplot as splt
+#from snntorch.spikevision import spikedata # Deprecated
+
+# Tonics
+import tonic
+import tonic.transforms
+from tonic import MemoryCachedDataset
 
 
 # Utilities
-import argparse
 import math
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import time
+import traceback
 
 from utility.common import *
-from utility.preprocess import *
-from utility.synthesize import *
-from utility.visualize import *
+from utility.evaluation import *
+from utility.parser import RensArgumentParser
+from utility.preprocessing import *
+from utility.statistic import *
+from utility.synthesization import *
+from utility.visualization import *
 
-from model.LearningUtils import *
+from model.learning_utility import EarlyStopping
+from models import *
 
 #
-# Specific Functions and Classes
+# Specifics
 #
-# TODO: 유틸리티에 추가 >> (v1.0.2)
-def calculate_metrics(labels, predictions, average='weighted'):
-    accuracy = accuracy_score(labels, predictions)
-    precision = precision_score(labels, predictions, average=average)
-    recall = recall_score(labels, predictions, average=average)
-    f1 = f1_score(labels, predictions, average=average)
-    return (accuracy, precision, recall, f1)
-
-# TODO: 유틸리티에 추가 >> (v1.0.2)
-def normalize(tensor):
-    vmax, vmin = tensor.max(), tensor.min()
-    normalized_tensor = (tensor-vmin)/(vmax-vmin)
-    return normalized_tensor
-
-# TODO: 유틸리티에 추가 >> (v1.0.2)
-def generate_noisy_batch(inputs, noise_intensity, device):
-    noise = torch.randn(size=inputs.shape) * noise_intensity
-    noise = noise.to(device)
-    noisy_inputs = inputs + noise
-
-    # 정규화(Optional)
-    # noisy_inputs = normalize(noisy_inputs)
-    
-    return noisy_inputs
-
-class Net(nn.Module):
-    def __init__(self, beta, spike_grad):
+class InheritedRensArgumentParser(RensArgumentParser):
+    def __init__(self):
         super().__init__()
+        ### 부모 파서의 인자 처리 정보를 받아옴, 충돌 시 아래 추가할 것임을 명시
+        self.parser = argparse.ArgumentParser(parents=[self.parser], conflict_handler='resolve')
+        ##*
+        self.parser.add_argument('-m', '--model', type=str, default='resnet101', choices=['cnn', 'resnet50', 'resnet101', 'snn1', 'snn2', 'snn3'], help="Type of a model to use. (Default: resnet101)") # >> choice 제거
+        self.parser.add_argument('--noise_training',action='store_true',
+                                 default=False)
+        self.parser.add_argument('--noise_test', action='store_true',
+                                 default=False)
+        self.parser.add_argument('--noise_intensity', type=float, default=0.5)
+        self.parser.add_argument('--output_format', type=str, default='string')
+        self.parser.add_argument('--path_file_metrics', type=str, default=None)
+        self.parser.add_argument('--path_file_metrics_latency', type=str, default=None)
+        self.parser.add_argument('--num_steps', type=int, default=50)
+        self.parser.add_argument('--beta', type=float, default=0.99)
+        self.parser.add_argument('-d', '--dataset_type', type=str, default='cifar10', choices=['cifar10, cifar100', 'mnist', 'nmnist'])
+        self.parser.add_argument('--device_id', type=int, default=0)
 
-        # Initialize layers
-        self.conv1 = nn.Conv2d(1, 12, 5)
-        self.lif1 = snn.Leaky(beta=beta, spike_grad=spike_grad)
-        self.conv2 = nn.Conv2d(12, 64, 5)
-        self.lif2 = snn.Leaky(beta=beta, spike_grad=spike_grad)
-        self.fc1 = nn.Linear(64*4*4, 10)
-        self.lif3 = snn.Leaky(beta=beta, spike_grad=spike_grad)
+# TODO: 유틸리티 synthesization에 추가
+def generate_noisy_data_with_psnr(data, target_psnr):
+    max_pixel = 1.0  # PyTorch 텐서의 경우 0과 1 사이로 정규화된 이미지라고 가정
+    mse_target = (max_pixel ** 2) / (10 ** (target_psnr / 10))
+    
+    # mse_target을 텐서로 변환
+    mse_target_tensor = torch.tensor(mse_target, dtype=data.dtype, device=data.device)
+    
+    std_dev = torch.sqrt(mse_target_tensor)
+    
+    noise = torch.normal(0, std_dev, size=data.shape, device=data.device)
+    noisy_image = data + noise
+    noisy_image = torch.clamp(noisy_image, 0.0, 1.0)  # 픽셀 값을 0과 1 사이로 제한
+    
+    return noisy_image
 
-    def forward(self, x, device):
+# TODO: 유틸리티 preprocessing에 추가
+class MyNormalize:
+    def __init__(self):
+        pass
+    def __call__(self, data):
+        vmax, vmin = data.max(), data.min()
+        return (data-vmin)/(vmax-vmin)
 
-        # Initialize hidden states and outputs at t=0
-        mem1 = self.lif1.reset_mem().to(device)
-        mem2 = self.lif2.reset_mem().to(device)
-        mem3 = self.lif3.reset_mem().to(device)
+# TODO: 유틸리티 visualization에 추가
+def visualize_loss(pilot: bool, train_loss: list, valid_loss, path: str=None):
+    plt.figure(figsize=(10,6))
+    plt.plot(train_loss, label='Training Loss')
+    plt.plot(valid_loss, label='Validation Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
 
-        cur1 = F.max_pool2d(self.conv1(x), 2)
-        spk1, mem1 = self.lif1(cur1, mem1)
+    if pilot is True:
+        plt.show()
+    else:
+        plt.savefig(path)
 
-        cur2 = F.max_pool2d(self.conv2(spk1), 2)
-        spk2, mem2 = self.lif2(cur2, mem2)
+# TODO: 모델 learning_utility에 추가
+def forward_pass(net, data, model_type='snn'):
+    spk_rec = []
+    if model_type == 'snn':
+        utils.reset(net)  # resets hidden states for all LIF neurons in net
 
-        cur3 = self.fc1(spk2.view(batch_size, -1))
-        spk3, mem3 = self.lif3(cur3, mem3)
+    for step in range(data.size(0)):  # data.size(0) = number of time steps
+        spk_out = net(data[step])
+        spk_rec.append(spk_out)
 
-        return spk3, mem3
+    outputs = torch.stack(spk_rec)
+
+    if model_type == 'cnn':
+        outputs = torch.mean(outputs, dim=0)
+
+    return outputs
 
 #
-# Main Implementation
+# Main
 #
 def main(args):
+    ### 트랜스폼 준비
     transform = transforms.Compose([transforms.ToTensor(),
-                                   transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+                                    MyNormalize()])
+    ##*
 
+    ### 데이터셋 종류에 따라 다르게 준비 >> 클래스로 변경
     if( args.dataset_type == 'cifar10' ):
-        train_dataset = datasets.CIFAR10(root=path_dataset,
-                                         train=True,
-                                         transform=transform,
-                                         download=False)
-        test_dataset = datasets.CIFAR10(root=path_dataset,
-                                        train=False,
-                                        transform=transform,
-                                        download=False)
-                                      
+        train_dataset = datasets.CIFAR10(root=path_dataset, train=True, transform=transform, download=False)
+        test_dataset = datasets.CIFAR10(root=path_dataset, train=False, transform=transform, download=False)
+    elif( args.dataset_type == 'cifar100' ):
+        train_dataset = datasets.CIFAR100(root=path_dataset, train=True, transform=transform, download=False)
+        test_dataset = datasets.CIFAR100(root=path_dataset, train=False, transform=transform, download=False)
+    elif( args.dataset_type == 'mnist'):
+        train_dataset = datasets.MNIST(root=path_dataset, train=True, transform=transform, download=False)
+        test_dataset = datasets.MNIST(root=path_dataset, train=False, transform=transform, download=False)
     else:
-        train_dataset = datasets.CIFAR100(root=path_dataset,
-                                         train=True,
-                                         transform=transform,
-                                         download=False)
-        test_dataset = datasets.CIFAR100(root=path_dataset,
-                                        train=False,
-                                        transform=transform,
-                                        download=False)
+        sensor_size = tonic.datasets.NMNIST.sensor_size
+        transform = tonic.transforms.Compose([
+            tonic.transforms.Denoise(filter_time=10000),
+            tonic.transforms.ToFrame(sensor_size=sensor_size,
+                               time_window=1000),
+            torch.from_numpy,
+            torchvision.transforms.RandomRotation([-10,10]),
+            MyNormalize()
+        ])
 
-    test_dataset[0]
-
-    # Scale dataset size
-    if( args.train_dataset_ratio < 1.0 ):
-        train_dataset = get_single_subset_by_ratio(train_dataset, ratio=args.train_dataset_ratio)
+        train_dataset = tonic.datasets.NMNIST(save_to='/DATA/hwkang', train=True, transform=transform)
+        test_dataset = tonic.datasets.NMNIST(save_to='/DATA/hwkang', train=False, transform=transform)
+    ##*
+    
+    ### 데이터셋 크기 조절
+    if( args.training_dataset_ratio < 1.0 ):
+        train_dataset = get_single_subset_by_ratio(train_dataset, ratio=args.training_dataset_ratio)
     if( args.test_dataset_ratio < 1.0 ):
         test_dataset = get_single_subset_by_ratio(test_dataset, ratio=args.test_dataset_ratio)
+    ##*
 
-    dataset_size = len(train_dataset)
-    train_size = int(0.8 * dataset_size)
-    valid_size = dataset_size - train_size
+    ### 훈련 데이터셋과 검증 데이터셋으로 분할
+    if args.disable_validation == False:
+        dataset_size = len(train_dataset)
+        train_size = int(0.9 * dataset_size)
+        valid_size = dataset_size - train_size
+        train_dataset, valid_dataset = random_split(train_dataset, [train_size, valid_size])
+    ##*
 
-    train_dataset, valid_dataset = random_split(train_dataset, [train_size, valid_size])
+    ### NMNIST 데이터셋 전처리
+    if args.dataset_type == 'nmnist':
+        train_dataset = MemoryCachedDataset(train_dataset)
+        if args.disable_validation == False:
+            valid_dataset = MemoryCachedDataset(valid_dataset)
+        test_dataset = MemoryCachedDataset(test_dataset)
+    ##*
 
+    ### 데이터로더 준비
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False)
-    test_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False)
+    if args.disable_validation == False:
+        valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    # Hyperparameters
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    if args.dataset_type == 'nmnist':
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, collate_fn=tonic.collation.PadTensors(batch_first=False), shuffle=True)
+        if args.disable_validation == False:
+            valid_loader = DataLoader(valid_dataset, batch_size=args.batch_size, collate_fn=tonic.collation.PadTensors(batch_first=False), shuffle=False)
+        test_loader = DataLoader(test_dataset, batch_size=args.batch_size, collate_fn=tonic.collation.PadTensors(batch_first=False), shuffle=False)
+    ##*
 
+    ### 디바이스 설정
+    device = torch.device(f'cuda:{int(args.device_id)}' if torch.cuda.is_available() else 'cpu')
+    ##*
+    
+    ### 모델 생성
     if( args.model == 'resnet50' ):
-        if(args.dataset_type =='cifar10'):
-            model = resnet50(weights=None, num_classes=10)
-        else:
-            model = resnet50(weights=None, num_classes=100)
+        model = resnet50(weights=None, num_classes=10) if args.dataset_type=='cifar10' else resnet50(weights=None, num_classes=100)
     elif( args.model == 'resnet101' ):
-        if(args.dataset_type =='cifar10'):
-            model = resnet101(weights=None, num_classes=10)
-        else:
-            model = resnet101(weights=None, num_classes=100)
-    elif( args.model == 'snn'):
-        pass
+        model = resnet101(weights=None, num_classes=10) if args.dataset_type=='cifar10' else resnet50(weights=None, num_classes=100)
+    elif( args.model == 'cnn' ):
+        model = CNN(dataset_type=args.dataset_type)
+    elif( args.model[:3] == 'snn'):
+        original_model = resnet50(weights=None, num_classes=10) #
+        if( args.model == 'snn1' ):
+            model = SpikingResNet50_1(original_model)
+        elif( args.model == 'snn2' ):
+            model = SpikingResNet50_2(original_model)
+        elif( args.model == 'snn3' ):
+            model = SpikingCNN(dataset_type=args.dataset_type, num_steps=args.num_steps)
+
+    ### 사전 훈련 된 모델을 사용하는 경우
     if( args.pretrained is not None ):
         model.load_state_dict(torch.load(args.pretrained))
+    ##*
+
+    ### To GPU
     model = model.to(device)
+    ##*
 
-    criterion = nn.CrossEntropyLoss()
+    ### 손실 함수 선택
+    if args.model != 'snn3':
+        criterion = nn.CrossEntropyLoss()
+    else:
+        criterion = SF.ce_rate_loss()
+    ##*
 
+    ### 옵티마이저 설정
     if( args.optimizer == 'adam' ):
-        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        optimizer = optim.Adam(model.parameters(), lr=0.001, betas=(0.9, 0.999))
     elif( args.optimizer == 'sgd' ):
-        optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9,
-                             weight_decay=5e-4)
-
+        optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+    ##*
+    
+    ### 에폭 수 설정
     num_epochs = args.epoch
-        
-    # Setup record variables
-    epoch_loss_rec = []
-    val_loss_rec = []
-    max_epoch_loss = math.inf
+    ##*
+    
+    ### 학습 기록용 변수 설정
+    train_loss_rec = [] # 훈련 로스 기록
+    valid_loss_rec = [] # 검증 로스 기록
+    max_valid_loss = math.inf # 모델 저장 시 직전 로스
+    ###
 
-    # Learning rate scehduling
-    #scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
-    scheduler = CosineAnnealingLR(optimizer, T_max=200)
+    ### LR 스케줄러 생성
+    if args.lr_scheduler:
+        scheduler = ReduceLROnPlateau(optimizer, 'min')
+    ##*
 
-    # Early stopping
-    early_stopping = EarlyStopping(patience=10, min_delta=0.0001)
+    ### 조기 종료 설정
+    early_stopping = EarlyStopping(patience=20, min_delta=1e-8)
+    ##*
 
-    # Training loop
-    if( args.pretrained is None ):
+    ### 시간 측정용 리스트
+    list_inference_time = []
+    list_backprop_time = []
+    list_noise_generation_time = []
+    ##*
+
+    ### 훈련 루프
+    if( args.disable_training == False ):
         for epoch in range(num_epochs):
             running_loss = 0.0
+
+            model.train()
+            ### 훈련 단계
+            step = 1
             for inputs, labels in train_loader:
                 inputs, labels = inputs.to(device), labels.to(device)
 
-                # Noise injection
-                if( args.noise_training is True ):
-                    trigger = torch.rand(1).item()
-                    if( trigger >= 0.66 ):
-                        inputs = generate_noisy_batch(inputs, torch.rand(1).item(), device)
+                noise_generation_time_start = 0
+                noise_generation_time_end = 0
+                if( args.noise_training ):
+                    noise_generation_time_start = time.time()
+                    inputs = generate_noisy_data_with_psnr(inputs, torch.randint(1, 36, (1,)).item())
+                    noise_generation_time_end = time.time()
                 
                 optimizer.zero_grad()
-                outputs = model(inputs)
+
+                ### 배치 순전파
+                inference_time_start = time.time()
+                if (args.dataset_type=='nmnist'):
+                    outputs = forward_pass(model, inputs, model_type=args.model)
+                else:
+                    outputs = model(inputs)
+                inference_time_end = time.time()
+                ##*
+
+                ### 역전파 시간 측정
+                backprop_time_start = time.time()
+                
+                ### 손실 계산
                 loss = criterion(outputs, labels)
+                ##*
+
+                ### 역전파
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
-
-            # After one epoch
-            model.eval()
-            val_loss = 0.0
-            correct = 0
-            total = 0
-            with torch.no_grad():
-                for inputs, labels in valid_loader:
-                    inputs, labels = inputs.to(device), labels.to(device)
-                    outputs = model(inputs)
-                    loss = criterion(outputs, labels)
-                    val_loss += loss.item()
-                    _, predicted = torch.max(outputs, 1)
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
-
-            val_accuracy = 100 * correct / total
-
-            if args.verbose:
-                print(f'\nEpoch: [{epoch+1}/{num_epochs}] ###############################################')
-                print(
-                f'Epoch Loss: {running_loss / len(train_loader.dataset):.4f}, '
-                f'Validation Loss: {val_loss / len(valid_loader.dataset):.4f}, '
-                f'Validation Accuracy: {val_accuracy:.2f}%')
-
-            epoch_loss = running_loss / len(train_loader.dataset)
-            epoch_loss_rec.append(epoch_loss)
-            val_loss_rec.append(val_loss)
+                ##*
             
-            # Improved?
-            if( epoch_loss < max_epoch_loss ):
+                backprop_time_end = time.time()
+                ##*
+            
+                ### 시간 계산 수집
+                list_noise_generation_time.append(noise_generation_time_end - noise_generation_time_start)
+                list_inference_time.append(inference_time_end - inference_time_start)
+                list_backprop_time.append(backprop_time_end - backprop_time_start)
+                ##*
+
+                if ( step % 1000 == 0 ) and ( args.verbose ) and ( args.dataset_type == 'nmnist'):
+                    print(f'Epoch: {epoch+1}/{num_epochs} | Step: {step}/{len(train_loader)} | Running Loss: {running_loss/step:.4f}')
+                step += 1
+            ##* 에폭 종료
+            
+            ### 검증 단계
+            if( args.disable_validation == False ):
+                model.eval()
+                valid_loss = 0.0
+                all_labels = []
+                all_predictions = []
+                with torch.no_grad():
+                    for inputs, labels in valid_loader:
+                        inputs, labels = inputs.to(device), labels.to(device)
+    
+                        ### 배치 순전파
+                        inference_time_start = time.time()
+                        if (args.dataset_type=='nmnist'):
+                            outputs = forward_pass(model, inputs, model_type=args.model)
+                        else:
+                            outputs = model(inputs)
+                        inference_time_end = time.time()
+                        ##*
+                        
+                        ### 손실 계산
+                        loss = criterion(outputs, labels)
+                        ##*
+    
+                        ### 손실 저장
+                        valid_loss += loss.item()
+                        ##*
+    
+                        ### 검증 정확도 재료 수집                        
+                        if args.model == 'snn3':
+                            outputs = torch.sum(outputs, dim=0)
+                            
+                        _, predicted_class = torch.max(outputs, dim=1)
+                        all_labels.extend(labels.detach().cpu().numpy())
+                        all_predictions.extend(predicted_class.detach().cpu().numpy())
+                        ##*
+    
+                # 검증 정확도 산출
+                valid_accuracy, _, _, _ = get_classification_metrics(all_labels, all_predictions, 'weighted')
+                ##* 검증 종료
+            
+            ### 훈련 결과 기록
+            train_loss = running_loss / len(train_loader.dataset)
+            train_loss_rec.append(train_loss)
+            if( args.disable_validation == False ):
+                valid_loss = valid_loss / len(valid_loader.dataset)
+                valid_loss_rec.append(valid_loss)
+            ##*
+            
+            ### 에폭 훈련 결과 출력
+            print(f'\nEpoch: [{epoch+1}/{num_epochs}] ############################################################')
+            if( args.disable_validation == False ):
+                print(f'Epoch Loss: {train_loss:.4f} | Validation Loss: {valid_loss:.4f} | Validation Accuracy: {valid_accuracy*100:.2f}%')
+            else:
+                print(f'Epoch Loss: {train_loss:.4f}')
+            
+            avg_noise_generation_time = sum(list_noise_generation_time)/len(list_noise_generation_time)
+            avg_inference_time = sum(list_inference_time)/len(list_inference_time)
+            avg_backprop_time = sum(list_backprop_time)/len(list_backprop_time)
+            print(f'Avg. Noise Generation Time: {avg_noise_generation_time*1000:.3f} ms | Avg. Inference Time: {avg_inference_time*1000:.3f} ms | Avg. Backprop Time: {avg_backprop_time*1000:.3f} ms')
+    
+            if 'metrics' in result_set:
+                record = {
+                    'noise_generation': avg_noise_generation_time,
+                    'inference': avg_inference_time,
+                    'backprop': avg_backprop_time
+                }
+                save_record_to_csv(path_file_metrics_latency, record)
+            ##*
+
+            # 검증 손실 개선이 있었는가?
+            if( valid_loss < max_valid_loss ):
                 if( args.verbose ):
-                    print(f'Model saved: [Last] {max_epoch_loss:.4f} >> {epoch_loss:.4f} [Current]')
+                    print(f'Model saved: [Last] {max_valid_loss:.4f} >> {valid_loss:.4f} [Current]')
                 best_model_state = model.state_dict()
-                torch.save(best_model_state, model_file_path)
+                if 'model' in result_set:
+                    torch.save(best_model_state, path_file_model)
                 best_epoch_idx = epoch + 1
-                max_epoch_loss = epoch_loss
+                max_valid_loss = valid_loss
                 
-            # Lr changed?
+            # 손실 변화에 따른 학습률 변경
             if args.lr_scheduler:
-                scheduler.step(epoch_loss)
+                scheduler.step(valid_loss)
                 if args.verbose:
                     print(f"Learning rate after epoch: {scheduler.get_last_lr()[0]}")
                 
-            # Early stop?
+            # 검증 손실 개선이 없어 종료해야 하는가?
             if args.early_stopping:
-                early_stopping(epoch_loss, model)
+                early_stopping(valid_loss, model)
                 if early_stopping.early_stop:
                     if args.verbose:
-                        print(f"Early stopping with: (epoch loss:{epoch_loss:.4f})")
-                        print(f'#############################################################')
+                        print(f"\nEarly stopping with: (validation loss: {valid_loss:.6f})")
                     break
-            
+        ### 전체 훈련 루프 종료
 
-        # After training loop
+        # 시험용 모델 획득
         if args.verbose:
-            print(f'\nLoad model state at best epoch loss [{best_epoch_idx}]\n')
+            print(f'\nLoad model state at best validation loss [{best_epoch_idx}]\n')
         model.load_state_dict(best_model_state)
-        visualize_epoch_loss(pilot=False, epoch_loss=epoch_loss_rec, file_path=loss_file_path)
-        
-    # Evaluation
-    model.eval()
-    all_labels = []
-    all_predictions = []
-    once = False
-    with torch.no_grad():
-        for inputs, labels in test_loader:
-            inputs, labels = inputs.to(device), labels.to(device)
+        ###
 
-            # Noise injection
-            if( args.noise_test ):
-                inputs = generate_noisy_batch(inputs, args.noise_intensity, device)
+        # 훈련 진행에 따른 손실 시각화
+        if 'loss' in result_set:
+            visualize_loss(pilot=False, train_loss=train_loss_rec, valid_loss=valid_loss_rec, path=path_file_loss)
+        ###
 
-                # Visualize noisy images
-                """
-                if once == False:
-                    samples = [ inputs[i].detach().cpu() for i in range(10) ]
-                    fig, axes = plt.subplots(2, 5, figsize=(12, 6))
-                    for i, ax in enumerate(axes.flat):
-                        ax.imshow(samples[i].permute(1,2,0), cmap='gray')
-                        ax.axis('off')
-                    plt.savefig(image_file_path)
-                    once = True
-                """
+    ### 시험 단계
+    if( args.disable_test == False ):
+        model.eval()
+        all_labels = []
+        all_predictions = []
+        acc = 0.0
+        total = 0.0
+        with torch.no_grad():
+            for inputs, labels in test_loader:
+                inputs, labels = inputs.to(device), labels.to(device)
+
+                if( args.noise_test ):
+                    inputs = generate_noisy_data_with_psnr(inputs, args.noise_intensity)
             
-            outputs = model(inputs)
-            predicted_value, predicted_class = torch.max(outputs, dim=1)
-            all_labels.extend(labels.detach().cpu().numpy())
-            all_predictions.extend(predicted_class.detach().cpu().numpy())
+                ### 순전파
+                if (args.dataset_type=='nmnist'):
+                    outputs = forward_pass(model, inputs, model_type=args.model)
+                else:
+                    outputs = model(inputs)
+                
+                ### 메트릭 수집
+                if args.model == 'snn3':
+                    outputs = torch.sum(outputs, dim=0)
+                            
+                _, predicted_class = torch.max(outputs, dim=1)
+                all_labels.extend(labels.detach().cpu().numpy())
+                all_predictions.extend(predicted_class.detach().cpu().numpy())
+                ##*
+                ##*
 
-    accuracy, precision, recall, f1 = calculate_metrics(all_labels, all_predictions)
-    print(f'\nAccuracy: {accuracy:.2f} | Precision: {precision:.2f} | Recall: {recall:.2f} | F1-Score: {f1:.2f}')
-
-    metrics_record = {
-        'accuracy': accuracy,
-        'precision': precision,
-        'recall': recall,
-        'f1-score': f1
-    }
-    save_record_to_csv(args.metrics_csv_file_path, metrics_record)
-    """
-    visualize_confusion_matrix(pilot=False,
-                               all_labels=all_labels,
-                               all_predictions=all_predictions,
-                               num_label=10 if args.dataset_type=='cifar10' else 100,
-                               accuracy=accuracy*100,
-                               noise_type=args.noise_type,
-                               file_path=confusion_matrix_file_path)
-    """
+        
+        a, p, r, f = get_classification_metrics(all_labels, all_predictions, 'weighted')
+        record = {
+            'accuracy': a,
+            'precision': p,
+            'recall': r,
+            'f1-score': f}
+        print(f'Accuracy: {a:.3f} | Precision: {p:.3f} | Recall: {r:.3f} | F1-Score: {f:.3f}')
+        
+        ###
+        if 'metrics' in result_set:
+            save_record_to_csv(path_file_metrics, record)
+        ##*
     
+        ###
+        if 'confusion_matrix' in result_set:
+            visualize_confusion_matrix(False, all_labels, all_predictions, 10, path_file_confusion_matrix)
+        ##*
+    ##*
+    print("\nSuccess!\n")
 
 #
-# Initialization
+# Init
 #
 if __name__=='__main__':
-    parser = argparse.ArgumentParser() # 불필요한 보일러플레이트 코드이므로 클래스를 선언한 후 상속하도록 변경 >> (v1.0.2)
-    
-    parser.add_argument('-d', '--dataset_type', type=str, required=False, default='cifar10', 
-                        choices=['cifar10','cifar100'])
-    parser.add_argument('-m', '--model', type=str, required=False, default='resnet101',
-                        choices=['resnet50', 'resnet101', 'snn'])
-    parser.add_argument('-o', '--optimizer', type=str, required=False, default='adam',
-                        choices=['adam', 'sgd'])
-    parser.add_argument('-n', '--noise_type', type=str, required=False, default='gaussian', 
-                        choices=['gaussian', 'snp', 'uniform', 'poisson', 'multi', 'none'])
-    parser.add_argument('--noise_training', action='store_true', required=False, default=False)
-    parser.add_argument('--noise_test', action='store_true', required=False, default=False)
-    parser.add_argument('--noise_intensity', type=restricted_float, required=False, default=0.0)
-    parser.add_argument('--train_dataset_ratio', type=restricted_float, required=False, default=1.0) # train_dataset_size
-    parser.add_argument('--test_dataset_ratio', type=restricted_float, required=False, default=1.0) # test_dataset_size
-    parser.add_argument('-b', '--batch_size', type=int, required=False, default=64) # batch_size
-    parser.add_argument('-e', '--epoch', type=int, required=False, default=50) # epoch
-    parser.add_argument('-p', '--pretrained', type=str, required=False, default=None)
-    parser.add_argument('--early_stopping', action='store_true', default=False)
-    parser.add_argument('--lr_scheduler', action='store_true', default=False)
-    parser.add_argument('--username', type=str, required=False, default=None)
-    parser.add_argument('--output_path_meta', type=str, required=False, default=path_result_meta)
-    parser.add_argument('--output_path_image', type=str, required=False, default=path_result_image)
-    parser.add_argument('--output_path_model', type=str, required=False, default=path_result_model)
-    parser.add_argument('--output_path_loss', type=str, required=False, default=path_result_loss)
-    parser.add_argument('--output_path_metrics', type=str, required=False, default=path_result_metrics)
-    parser.add_argument('--metrics_csv_file_path', type=str, required=True)
-    parser.add_argument('--verbose', action='store_true', default=False, help="Enable verbose mode")
-    parser.add_argument('--notes', type=str, required=False, default=None)
+    parser = InheritedRensArgumentParser()
+    args = parser.get_argument_parser()
 
-    args = parser.parse_args()
+    ### 디렉터리 경로 설정
+    path_dataset = os.path.join(path_root, 'dataset')
+    path_result_root = os.path.join(path_root, 'result/exp09')
+    path_image = os.path.join(path_result_root, 'image')
+    path_loss = os.path.join(path_result_root, 'loss')
+    path_meta = os.path.join(path_result_root, 'meta')
+    path_metrics = os.path.join(path_result_root, 'metrics')
+    path_model = os.path.join(path_result_root, 'model')
+    ##*
 
-    # Check: directory existence
-    ensure_directory(path_dataset)
-    ensure_directory(path_result)
-    ensure_directory(path_result_root)
-    ensure_directory(args.output_path_meta)
-    ensure_directory(args.output_path_image)
-    ensure_directory(args.output_path_model)
-    ensure_directory(args.output_path_loss)
-    ensure_directory(args.output_path_metrics)
-
+    ### 메타 데이터 생성
+    xid = get_next_xid(path_meta)
     current_time = get_current_time_str()
-    xid = get_next_xid(args.output_path_meta)
-    lines = [
-        f'datetime: {current_time}',
-        f'dataset_type: {args.dataset_type}',
-        f'model: {args.model}',
-        f'optimizer: {args.optimizer}',
-        f'noise_type: {args.noise_type}',
-        f'noise_training: {args.noise_training}',
-        f'noise_test: {args.noise_test}',
-        f'noise_intensity: {args.noise_intensity}',
-        f'train_dataset_ratio: {args.train_dataset_ratio}',
-        f'train_dataset_ratio: {args.test_dataset_ratio}',
-        f'batch_size: {args.batch_size}',
-        f'epoch: {args.epoch}',
-        f'pretrained: {args.pretrained}',
-        f'early_stopping: {args.early_stopping}',
-        f'lr_scheduler: {args.lr_scheduler}',
-        f'username: {args.username}',
-        f'output_path_meta: {args.output_path_meta}',
-        f'output_path_image: {args.output_path_image}',
-        f'output_path_model: {args.output_path_model}',
-        f'output_path_loss: {args.output_path_loss}',
-        f'output_path_metrics: {args.output_path_metrics}',
-        f'metrics_csv_file_path: {args.metrics_csv_file_path}',        
-        f'verbose: {args.verbose}',
-        f'notes: {args.notes}'
-    ]
+    argument_info = parser.get_argument_info(output_format=args.output_format)
+    if args.output_format == 'string':
+        meta_data = [f'xid: {str(xid)}'] + [current_time] + argument_info
+    else:
+        meta_data = {'xid': str(xid), 'current_time': current_time}
+        meta_data = meta_data | argument_info
+    ##*
 
-    meta_file_path = f'{args.output_path_meta}/{xid:03d}_{exp_no}_meta_{args.dataset_type}_{args.noise_intensity}_{current_time}.txt'
-    image_file_path = f'{args.output_path_image}/{xid:03d}_{exp_no}_sample_{args.dataset_type}_{args.noise_intensity}_{current_time}.png'
-    model_file_path = f'{args.output_path_model}/{xid:03d}_{exp_no}_model_{args.dataset_type}_{args.noise_intensity}_{current_time}.weights'
-    loss_file_path = f'{args.output_path_loss}/{xid:03d}_{exp_no}_loss_{args.dataset_type}_{args.noise_intensity}_{current_time}.png'
-    
-    # 혼동 행렬을 표현하는 파일명으로 변경 >> (v1.0.2)
-    confusion_matrix_file_path = f'{args.output_path_metrics}/{xid:03d}_{exp_no}_confusion_matrix_{args.dataset_type}_{args.noise_intensity}_{current_time}.png' 
-    
-    # 정확도 지표 뿐만 아니라 향후 다른 지표도 함께 명시한다는 것을 나타내기 위해 metrics를 중심으로 변경 >> (v1.0.2)
-    #metrics_csv_file_path = args.output_path_metrics + f'{exp_no}_{args.dataset_type}_{args.noise_intensity}_metrics.csv' 
-    
-    if args.verbose:
-        print("#######################################################################")
-        print("########################## Meta Data ##################################")
-        print("#######################################################################")
-        for line in lines:
-            print(line)
-        print("#######################################################################")
-        print("########################## Output Filenames ###########################")
-        print("#######################################################################")
-        print(meta_file_path)
-        print(image_file_path)
-        print(model_file_path)
-        print(loss_file_path)
-        print(confusion_matrix_file_path)
-        #print(metrics_csv_file_path)
-        print("#######################################################################")
-        print("########################## End of Meta Data ###########################")
-        print("#######################################################################")
+    ### 메타 데이터 프롬프트에 출력
+    if( args.verbose ):
+        print('\n')
+        if args.output_format == 'string':
+            for line in meta_data:
+                print(line)
+        else:
+            for k, v in meta_data.items():
+                print(f'{k}: {v}')
+        print('\n')
+    else:
+        print("\nSkip printing out meta data.\n")
+    ##*
 
-    with open(meta_file_path, 'w') as file:
-      for line in lines:
-          file.write(line + '\n')
-    
-    # Execution
+    ### 파일 경로 설정
+    path_file_image = os.path.join(path_image, f'{xid:04d}_{exp_no}_image_{args.prefix}{args.body}{args.suffix}.png')
+    path_file_loss = os.path.join(path_loss, f'{xid:04d}_{exp_no}_loss_{args.prefix}{args.body}{args.suffix}.png')
+    path_file_meta = os.path.join(path_meta, f'{xid:04d}_{exp_no}_meta_{args.prefix}{args.body}{args.suffix}.txt')
+    path_file_confusion_matrix = os.path.join(path_metrics, f'{xid:04d}_{exp_no}_confusion_matrix_{args.prefix}{args.body}{args.suffix}.png')
+    path_file_metrics = os.path.join(path_metrics, f'{exp_no}_metrics_{args.prefix}{args.body}{args.suffix}.csv')
+    path_file_metrics_latency = os.path.join(path_metrics, f'{exp_no}_metrics_latency_{args.prefix}{args.body}{args.suffix}.csv')
+    path_file_model = os.path.join(path_model, f'{xid:04d}_{exp_no}_model_{args.prefix}{args.body}{args.suffix}.weights')
+    ##*
+
+    ### 메타 데이터 저장
+    if( args.output_format == 'csv' ):
+        path_file_meta = os.path.join(path_meta, f'{exp_no}_meta_{args.prefix}{args.body}{args.suffix}.csv')
+        save_record_to_csv(path_file_meta, meta_data)
+    else:
+        with open(path_file_meta, 'w') as file:
+            for line in meta_data:
+                file.write(line + '\n')
+    ##*
+
+    ###
+    if args.path_file_metrics is not None:
+        path_file_metrics = args.path_file_metrics
+    ##*
+    if args.path_file_metrics_latency is not None:
+        path_file_metrics_latency = args.path_file_metrics_latency
+
+
+
+    ###
+    result_set = set(args.write_to)
+    ##*
+
+    ### 실행
     try:
         start_time = time.time()
         main(args)
-        write_metadata_status(meta_file_path, 'SUCCESS')
+        write_metadata_status(path_file_meta, 'SUCCESS')
     except KeyboardInterrupt:
-        write_metadata_status(meta_file_path, 'HALTED')
+        write_metadata_status(path_file_meta, 'HALTED')
     except Exception as e:
-        if( args.verbose ): # 에러가 메타 파일 뿐만 아니라 표준 출력 되도록 설정 >> (v1.0.2)
-            print(e)
-        write_metadata_status(meta_file_path, f'FAILED({e})')
+        _, _, tb = sys.exc_info()
+        trace = traceback.format_tb(tb)
+        with open(path_file_meta, 'a') as file:
+            file.writelines(trace)
+        print(f"FAILED({type(e).__name__}: {e})")
+        print(''.join(trace))
     finally:
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        with open(meta_file_path, 'a') as file:
+        elapsed_time = time.time() - start_time
+        with open(path_file_meta, 'a') as file:
             file.write(f'\nTotal elapsed time: {elapsed_time:.6f} s')
-        print( f'Total elapsed time: {elapsed_time:.6f} s\n' )
+        print( f'\nTotal elapsed time: {elapsed_time:.6f} s\n' )
+    ##*
