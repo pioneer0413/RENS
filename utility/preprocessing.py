@@ -6,9 +6,10 @@ Change log:
   - 2024-08-12: 코드 설명 주석 추가 (v1.0.0)
   - 2024-08-16: get_subset 메서드명 변경 및 메서드 3개 추가 v(1.0.1)
   - 2024-08-22: writing_convention.md에 의거한 파일명 변경 preprocess.py -> preprocessing.py, TODO 수행 (v1.0.2)
+  - 2024-08-29: get_multiple_subsets_by_size 추가, 들여쓰기/오기 수정(v1.1.0)
   
-Last update: 2024-08-22 20:09 Thu.
-Last author: hwkang
+Last update: 2024-08-29 16:31 Thu.
+Last author: mwkim
 """
 
 
@@ -27,6 +28,16 @@ Last update: 2024-08-22 19:49 Thu.
 Last author: hwkang
 """
 def get_two_subsets_by_ratio(dataset: Dataset, split_ratio=8) -> list:
+    if( 1 < split_ratio < 10 ):
+        split_ratio = split_ratio / 10
+    elif( split_ratio <= 0 or split_ratio >= 10 ):
+        raise ValueError("\nERROR: split_ratio must be larger than 0 and smaller than 10\n")
+    
+    dataset_size = len(dataset)
+    train_size = int(split_ratio * dataset_size)
+    valid_size = dataset_size - train_size
+    
+    return random_split(dataset, [train_size, valid_size])
     if( 1 < split_ratio < 10 ):
         split_ratio = split_ratio / 10
     elif( split_ratio <= 0 or split_ratio >= 10 ):
@@ -74,11 +85,11 @@ def get_single_subset_by_ratio(dataset: Dataset, ratio: float=0.2) -> Dataset:
 Purpose: 기존 데이터셋에서 크기에 맞게 일부를 추출
 Parameters: 
  - dataset (Dataset): 추출될 기존 데이터셋
- - target_size (float): 추출할 크기
+ - target_size (int): 추출할 크기
 Returns:
  - subset (Dataset): 부분 데이터셋
-Last update: 2024-08-22 19:49 Thu.
-Last author: hwkang
+Last update: 2024-08-29 16:32 Thu.
+Last author: mwkim
 """
 def get_single_subset_by_size(dataset: Dataset, target_size: int) -> Dataset:
     return Subset(dataset, list(range(target_size)))
@@ -88,11 +99,11 @@ def get_single_subset_by_size(dataset: Dataset, target_size: int) -> Dataset:
 Purpose: 기존 데이터셋을 여러 개의 데이터셋으로 분할
 Parameters: 
  - dataset (Dataset): 기존 데이터셋
- - num_split (float): 분할된 데이터셋의 수
+ - num_split (int): 분할된 데이터셋의 수
 Returns:
  - subset (Dataset): 부분 데이터셋
-Last update: 2024-08-22 20:08 Thu.
-Last author: hwkang
+Last update: 2024-08-29 16:32 Thu.
+Last author: mwkim
 """
 def get_multiple_subsets_by_ratio(dataset: Dataset, num_split: int=8) -> list:
     total_length = len(dataset)
@@ -119,4 +130,25 @@ class NormalizeTensor:
     def __call__(self, data):
         vmax, vmin = data.max(), data.min()
         return (data-vmin)/(vmax-vmin)
-  
+
+
+"""
+Purpose: 기존 데이터셋을 여러 개의 데이터셋으로 분할
+Parameters: 
+ - dataset  (Dataset): 기존 데이터셋
+ - subset_size  (int): 분할된 데이터셋의 수
+ - drop_last   (bool): 마지막 subset이 subset_size에 맞지 않을 때 버릴지 여부
+Returns:
+ - subset_list (list): 부분 데이터셋 리스트
+Last update: 2024-08-29 16:32 Thu.
+Last author: mwkim
+"""
+def get_multiple_subsets_by_size(dataset: Dataset, subset_size: int, drop_last: bool=False):
+    total_size = len(dataset)
+    indices = list(range(total_size))
+    subset_list = [Subset(dataset, indices[i : i + subset_size]) for i in range(0, total_size, subset_size)]
+
+    if drop_last and len(subset_list[-1]) < subset_size:
+        subset_list = subset_list[:-1]
+
+    return subset_list
