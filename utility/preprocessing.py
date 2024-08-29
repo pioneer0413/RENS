@@ -38,16 +38,6 @@ def get_two_subsets_by_ratio(dataset: Dataset, split_ratio=8) -> list:
     valid_size = dataset_size - train_size
     
     return random_split(dataset, [train_size, valid_size])
-    if( 1 < split_ratio < 10 ):
-        split_ratio = split_ratio / 10
-    elif( split_ratio <= 0 or split_ratio >= 10 ):
-        raise ValueError("\nERROR: split_ratio must be larger than 0 and smaller than 10\n")
-
-    dataset_size = len(dataset)
-    train_size = int(split_ratio * dataset_size)
-    valid_size = dataset_size - train_size
-
-    return random_split(dataset, [train_size, valid_size])
 
 
 """
@@ -109,27 +99,11 @@ def get_multiple_subsets_by_ratio(dataset: Dataset, num_split: int=8) -> list:
     total_length = len(dataset)
     base_length = total_length // num_split
     split_lengths = [base_length] * num_split
-
+    
     for i in range(total_length % num_split):
         split_lengths[i] += 1
-
+    
     return random_split(dataset, split_lengths)
-
-
-"""
-Purpose: 데이터셋 [0.0, 1.0] 정규화 클래스
-Attributes: None
-Methods: 
-    - __call__: 정규화 수행
-Last update: 2024-08-29 17:14 Thu.
-Last author: hwkang
-"""
-class NormalizeTensor:
-    def __init__(self):
-        pass
-    def __call__(self, data):
-        vmax, vmin = data.max(), data.min()
-        return (data-vmin)/(vmax-vmin)
 
 
 """
