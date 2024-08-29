@@ -27,16 +27,16 @@ Last update: 2024-08-22 19:49 Thu.
 Last author: hwkang
 """
 def get_two_subsets_by_ratio(dataset: Dataset, split_ratio=8) -> list:
-  if( 1 < split_ratio < 10 ):
-    split_ratio = split_ratio / 10
-  elif( split_ratio <= 0 or split_ratio >= 10 ):
-    raise ValueError("\nERROR: split_ratio must be larger than 0 and smaller than 10\n")
+    if( 1 < split_ratio < 10 ):
+        split_ratio = split_ratio / 10
+    elif( split_ratio <= 0 or split_ratio >= 10 ):
+        raise ValueError("\nERROR: split_ratio must be larger than 0 and smaller than 10\n")
 
-  dataset_size = len(dataset)
-  train_size = int(split_ratio * dataset_size)
-  valid_size = dataset_size - train_size
+    dataset_size = len(dataset)
+    train_size = int(split_ratio * dataset_size)
+    valid_size = dataset_size - train_size
 
-  return random_split(dataset, [train_size, valid_size])
+    return random_split(dataset, [train_size, valid_size])
 
 
 """
@@ -81,7 +81,7 @@ Last update: 2024-08-22 19:49 Thu.
 Last author: hwkang
 """
 def get_single_subset_by_size(dataset: Dataset, target_size: int) -> Dataset:
-  return Subset(dataset, list(range(target_size)))
+    return Subset(dataset, list(range(target_size)))
 
 
 """
@@ -95,11 +95,28 @@ Last update: 2024-08-22 20:08 Thu.
 Last author: hwkang
 """
 def get_multiple_subsets_by_ratio(dataset: Dataset, num_split: int=8) -> list:
-  total_length = len(dataset)
-  base_length = total_length // num_split
-  split_lengths = [base_length] * num_split
+    total_length = len(dataset)
+    base_length = total_length // num_split
+    split_lengths = [base_length] * num_split
 
-  for i in range(total_length % num_split):
-    split_lengths[i] += 1
+    for i in range(total_length % num_split):
+        split_lengths[i] += 1
 
-  return random_split(dataset, split_lengths)
+    return random_split(dataset, split_lengths)
+
+
+"""
+Purpose: 데이터셋 [0.0, 1.0] 정규화 클래스
+Attributes: None
+Methods: 
+    - __call__: 정규화 수행
+Last update: 2024-08-29 17:14 Thu.
+Last author: hwkang
+"""
+class NormalizeTensor:
+    def __init__(self):
+        pass
+    def __call__(self, data):
+        vmax, vmin = data.max(), data.min()
+        return (data-vmin)/(vmax-vmin)
+  

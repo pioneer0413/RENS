@@ -6,8 +6,9 @@ Change log:
   - 2024-08-12: 코드 설명 주석 추가 (v1.0.0)
   - 2024-08-16: GradedNoisedDataset 클래스 주석 추가 (v1.0.1)
   - 2024-08-22: writing_covention.md에 의거한 파일명 변경 및 TODO 수행 (v1.0.2)
+  - 2024-08-29: generate_gaussian_with_psnr 메서드 추가 (v1.1.0)
 
-Last update: 2024-08-22 20:15 Thu.
+Last update: 2024-08-29 17:12 Thu.
 Last author: hwkang
 """
 
@@ -17,6 +18,35 @@ import torch
 from torch.utils.data import Dataset
 import numpy as np
 import random
+
+
+"""
+Purpose: 목표 PSNR 값으로 가우시안 잡음 데이터 생성
+Parameters: 
+  - data (Tensor): Tensor
+  - target_psnr (int): 목표 PSNR
+Returns:
+  - noisy_data (Tensor): 가우시안 잡음이 더해진 이미지
+Last update: 2024-08-29 17:07 Thu.
+Last author: hwkang
+Notes:
+    - 대상 데이터는 0에서 1 사이 값으로 정규화 되어 있어야 함
+    - 현재는 Tensor 타입에 대해서만 처리하도록 구현되어 있음 << (v1.1.0)
+"""
+def generate_gaussian_with_psnr(data: torch.Tensor, target_psnr: int):
+    max_pixel = 1.0  # PyTorch 텐서의 경우 0과 1 사이로 정규화된 이미지라고 가정
+    mse_target = (max_pixel ** 2) / (10 ** (target_psnr / 10))
+    
+    # mse_target을 텐서로 변환
+    mse_target_tensor = torch.tensor(mse_target, dtype=data.dtype, device=data.device)
+    
+    std_dev = torch.sqrt(mse_target_tensor)
+    
+    noise = torch.normal(0, std_dev, size=data.shape, device=data.device)
+    noisy_data = data + noise
+    noisy_data = torch.clamp(noisy_data, 0.0, 1.0)  # 픽셀 값을 0과 1 사이로 제한
+    
+    return noisy_data
 
 
 """

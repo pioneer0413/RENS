@@ -83,3 +83,8 @@ def save_record_to_csv(path: str, record: list):
             writer.writerow(header)
 
         writer.writerow(record.values())
+
+
+
+def collect_result():
+    pass

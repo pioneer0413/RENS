@@ -6,8 +6,9 @@ Change log:
   - 2024-08-12: 코드 설명 주석 추가 (v1.0.0)
   - 2024-08-16: write_metadata 메서드명 변경 (v1.0.1)
   - 2024-08-22: ensure_directories 메서드 추가 (v1.0.2)
+  - 2024-08-29: restricted_float 메서드 이동 -> parser.py (v1.1.0)
 
-Last update: 2024-08-23 16:50 Fri.
+Last update: 2024-08-29 18:03 Thu.
 Last author: hwkang
 """
 
@@ -71,19 +72,3 @@ Last author: hwkang
 def write_as_json(content: list, path: str, mode: str='w'):
   with open(path, mode) as f:
     json.dump(content, f)
-    
-
-"""
-Purpose: 명령행 인자의 범위를 제한
-Parameters: 
-  - x (float): 실수 자료형 명령행 인자
-Returns:
-  - x (float): 실수 자료형 인자값
-Last update: 2024-08-12 15:28 Mon.
-Last author: hwkang
-"""
-def restricted_float(x: float):
-    x = float(x)
-    if x < 0.0 or x > 1.0:
-        raise argparse.ArgumentTypeError(f"{x} is not in range [0.0, 1.0]")
-    return x

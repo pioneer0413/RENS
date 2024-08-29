@@ -6,8 +6,9 @@ Change log:
   - 2024-08-12: 코드 설명 주석 추가 (v1.0.0)
   - 2024-08-16: get_classfication_metrics 함수 변경 및 save_to_csv 함수 주석 변경 (v1.0.1)
   - 2024-08-23: writing_convention.md에 의거 파일명 변경 및 TODO 수행 (v1.0.2)
+  - 2024-08-29: visualize_epoch_loss 수정 (v1.1.0)
 
-Last update: 2024-08-23 08:15 Fri.
+Last update: 2024-08-29 17:20 Thu.
 Last author: hwkang
 """
 
@@ -66,7 +67,7 @@ Parameters:
   - path (str): 시각화 결과를 저장할 경로
 Returns: None
 Notes: v1.0.1에서 인자명이 변경됨
-Last update: 2024-08-16 14:13 Fri.
+Last update: 2024-08-29 17:22 Thu.
 Last author: hwkang
 """
 def visualize_noisy_sample(pilot: bool, loader, path: str=None):
@@ -85,6 +86,8 @@ def visualize_noisy_sample(pilot: bool, loader, path: str=None):
 
     if pilot is True:
         plt.show()
+        if(path is not None):
+            plt.savefig(path)
     else:
         # Output the image to path
         plt.tight_layout()
@@ -95,23 +98,26 @@ def visualize_noisy_sample(pilot: bool, loader, path: str=None):
 Purpose: 에폭에 따른 로스 추이를 시각화
 Parameters: 
   - pilot (bool): 실행 중인 프로그램이 파일럿인지 구분
-  - epoch_loss (list): 에폭에 따른 손실이 담긴 리스트
+  - train_loss (list): 훈련 손실이 담긴 리스트
+  - valid_loss (list): 검증 손실이 담긴 리스트
   - path (str): 결과를 이미지로 저장할 경로
 Returns: None
-Notes: path 인자명 변경
-Last update: 2024-08-23 08:53 Fri.
+Last update: 2024-08-29 17:18 Thu.
 Last author: hwkang
 """
-def visualize_epoch_loss(pilot: bool, epoch_loss: list, path: str=None):
+def visualize_epoch_loss(pilot: bool, train_loss: list=None, valid_loss: list=None, path: str=None):
     plt.figure(figsize=(10,6))
-    plt.plot(epoch_loss)
-    plt.title('Epoch Loss Over Time')
+    plt.plot(train_loss, label='Training Loss')
+    plt.plot(valid_loss, label='Validation Loss')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
+    plt.legend()
     plt.grid(True)
 
     if pilot is True:
         plt.show()
+        if(path is not None):
+            plt.savefig(path)
     else:
         plt.tight_layout()
         plt.savefig(path)
@@ -127,7 +133,7 @@ Parameters:
   - path (str): 시각화 결과를 저장할 파일 경로
   - *args (list): 제목 생성을 위한 위치 가변 인자
 Returns: None
-Last update: 2024-08-23 09:05 Fri.
+Last update: 2024-08-29 17:22 Thu.
 Last author: hwkang
 """
 def visualize_confusion_matrix(pilot: bool, all_labels: list, all_predictions: list,
@@ -145,6 +151,8 @@ def visualize_confusion_matrix(pilot: bool, all_labels: list, all_predictions: l
     
     if pilot is True:
         plt.show()
+        if(path is not None):
+            plt.savefig(path)
     else:
         plt.tight_layout()
         plt.savefig(path)
