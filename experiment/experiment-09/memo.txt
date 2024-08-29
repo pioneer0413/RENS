@@ -1,0 +1,25 @@
+훈련 모델 번호
+
+ResNet50: 
+- 2774, 2775 >> Adam
+- 1577, 1578 >> SGD
+ResNet101: 
+- 1575, 1576 >> Adam
+- 1353, 1354 >> SGD
+
+CNN: 
+- 3361, 3365 >> Adam >> Stop at Epoch #88, #116
+- 1359, 1360 >> SGD
+
+- 3371, 3372 >> dataset_type mnist
+
+SNN: 
+- 2776 >> SpikingResNet50_1(snn1)
+- 2777 >> SpikingResNet50_2(snn2)
+- 3360 >> SpikingCNN(snn3) beta 0.9 #83
+- 3366 >> SpikingCNN(snn3) beta 0.95 #116
+- 3367 >> SpikingCNN(snn3) beta 0.99 #113
+
+SNN 99:
+- 3368 >> SpikingCNN(snn3) num_steps 100
+- 3369 >> SpikingCNN(snn3) dataset_type mnist
