@@ -39,12 +39,21 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import time
 
+'''
 from utility.common import *
 from utility.preprocess import *
 from utility.synthesize import *
 from utility.visualize import *
 from model.SimpleCNN import *
 from model.LearningUtils import *
+'''
+from utility.statistic import *
+from utility.common import *
+from utility.preprocessing import *
+from utility.synthesization import *
+from utility.visualization import *
+from model.simple_cnn import *
+from model.learning_utility import *
 
 '''
 START of synthesize
@@ -55,7 +64,7 @@ START of synthesize
 import random
 
 class BinarilyNoisedDataset(Dataset):
-    def __init__(self, data_loader, noise_type='gaussian', intensity_threshold=0.5, margin=0.0, sigma_reduction=0, label_balance=False):
+    def __init__(self, data_loader, device, noise_type='gaussian', intensity_threshold=0.5, margin=0.0, sigma_reduction=0, label_balance=False):
         # intensity_threshold : label=0(약한잡음)의 분류기준점
         # margin : 분류기준점으로부터 데이터 미생성 범위
         # sigma_reduction : gaussian 정규분포 입력데이터에 대해 시그마 축소배율을 지정하여, 범위 내 데이터가 전체 정규분포 중 일정%를 대변하도록 함
@@ -68,12 +77,13 @@ class BinarilyNoisedDataset(Dataset):
             raise ValueError("margin can't be equal or bigger than one label's range")
         
         for image, label in data_loader:
+            image, label = image.to(device), label.to(device)
             image = image.squeeze(0)
             if(self.label_creation(intensity_threshold, label_balance)):
-                self.x.append(generate_one_noisy_image(image, intensity=intensity_threshold + margin + self.intensity_creation(1-intensity_threshold-margin, sigma_reduction), noise_type=noise_type))
+                self.x.append(generate_noisy_data(data=image, intensity=intensity_threshold + margin + self.intensity_creation(1-intensity_threshold-margin, sigma_reduction), noise_type=noise_type, rescale=True, normalize=True, device=device))
                 self.y.append(1)
             else:
-                self.x.append(generate_one_noisy_image(image, intensity=self.intensity_creation(intensity_threshold-margin, sigma_reduction), noise_type=noise_type))
+                self.x.append(generate_noisy_data(data=image, intensity=self.intensity_creation(intensity_threshold-margin, sigma_reduction), noise_type=noise_type, rescale=True, normalize=True, device=device))
                 self.y.append(0)
                     
     def __len__(self):
@@ -111,6 +121,44 @@ class BinarilyNoisedDataset(Dataset):
 END of synthesize
 '''
 
+'''
+START of visualization
+'''
+def visualize_sample(pilot: bool, loader, path: str=None):
+    # Unzip sample_batch to 10 samples
+    x, y = next(iter(loader)) # Assume x: [n, 64, 1, 28, 28] -> [64, 1, 28, 28] after indexing
+    
+    # Select 10 samples
+    samples = [(x[i], y[i]) for i in range(10)] # [64, 1, 28, 28] -> 10 * [1, 28, 28]
+    
+    # Create a 2 x 5 grid for images
+    fig, axes = plt.subplots(2, 5, figsize=(12, 6))
+
+    for i, ax in enumerate(axes.flat):
+        image = samples[i][0]
+        
+        # Convert tensor to numpy if needed
+        if hasattr(image, 'numpy'):
+            image = image.cpu().numpy()
+        
+        # If the image is a tensor from PyTorch, it will have a shape of [C, H, W].
+        # Use permute to change this to [H, W, C] for matplotlib.
+        if image.ndim == 3:
+            image = np.transpose(image, (1, 2, 0))  # convert from [C, H, W] to [H, W, C]
+
+        ax.imshow(image.squeeze(), cmap='gray')
+        ax.axis('off')
+        ax.set_title(f"Label:{samples[i][1].item() if hasattr(samples[i][1], 'item') else samples[i][1]}")
+
+    if pilot:
+        plt.show()
+    else:
+        plt.tight_layout()
+        plt.savefig(path)
+'''
+END of visualization
+'''
+
 def main(args):
 
     # Main implementation
@@ -137,23 +185,7 @@ def main(args):
                                         train=False,
                                         transform=transform,
                                         download=True)
-
-    # Modify proportion of the dataset
-    # On train dataset
-    if( args.pretrained is None ):
-        train_dataset = get_single_subset_by_ratio(train_dataset, args.train_dataset_ratio)
-        train_loader = DataLoader(dataset=train_dataset, batch_size=1, shuffle=False)
-        binarily_noised_train_dataset = BinarilyNoisedDataset(train_loader, noise_type=args.noise_type, intensity_threshold=args.intensity_threshold, margin=args.margin, sigma_reduction=args.sigma_reduction, label_balance=args.label_balance)    
-        binarily_noised_train_loader = DataLoader(binarily_noised_train_dataset, batch_size=args.batch_size, shuffle=True)
-    # On test dataset 
-    test_dataset = get_single_subset_by_ratio(test_dataset, args.test_dataset_ratio)
-    test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False)
-    binarily_noised_test_dataset = BinarilyNoisedDataset(test_loader, noise_type=args.noise_type, intensity_threshold=args.intensity_threshold, margin=0, sigma_reduction=0, label_balance=False) # based on reality : margin=0 & sigma_reduction=0(uniform) & label_balance=False
-    binarily_noised_test_loader = DataLoader(binarily_noised_test_dataset, batch_size=args.batch_size, shuffle=False)
-    
-    # Sanity check
-    visualize_noisy_sample(pilot=False, loader=binarily_noised_test_loader, file_path=image_file_path)
-
+        
     # Setup hyperparameters
     device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
     model = BNC_CNN()
@@ -163,16 +195,32 @@ def main(args):
     criterion = nn.BCELoss() #이진분류
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     num_epochs = args.epoch
-
-    epoch_loss_rec = []
-    max_epoch_loss = math.inf
+    
+    # Modify proportion of the dataset
+    # On train dataset
+    if( args.pretrained is None ):
+        train_dataset = get_single_subset_by_ratio(train_dataset, args.train_dataset_ratio)
+        train_loader = DataLoader(dataset=train_dataset, batch_size=1, shuffle=False)
+        binarily_noised_train_dataset = BinarilyNoisedDataset(train_loader, noise_type=args.noise_type, intensity_threshold=args.intensity_threshold, margin=args.margin, sigma_reduction=args.sigma_reduction, label_balance=args.label_balance, device=device)    
+        binarily_noised_train_loader = DataLoader(binarily_noised_train_dataset, batch_size=args.batch_size, shuffle=True)
+    # On test dataset 
+    test_dataset = get_single_subset_by_ratio(test_dataset, args.test_dataset_ratio)
+    test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False)
+    binarily_noised_test_dataset = BinarilyNoisedDataset(test_loader, noise_type=args.noise_type, intensity_threshold=args.intensity_threshold, margin=0, sigma_reduction=0, label_balance=False, device=device) # based on reality : margin=0 & sigma_reduction=0(uniform) & label_balance=False
+    binarily_noised_test_loader = DataLoader(binarily_noised_test_dataset, batch_size=args.batch_size, shuffle=False)
+    
+    # Sanity check
+    visualize_sample(pilot=False, loader=binarily_noised_test_loader, path=image_file_path)
 
     #학습률 스케줄링
     scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
 
     #early stopping
     early_stopping = EarlyStopping(patience=10, min_delta=0.001)
-
+    
+    epoch_loss_rec = []
+    max_epoch_loss = math.inf
+    
     # Training loop
     if( args.pretrained is None ):
         for epoch in range(num_epochs):
@@ -218,6 +266,7 @@ def main(args):
                         last_lr = str(scheduler.get_last_lr()[0])
                         with open(meta_file_path, 'a') as file:
                             file.write(f'\nlearning rate changed to {last_lr} at Epoch {epoch + 1}')
+                    print(f'\nlearning rate changed to {last_lr} at Epoch {epoch + 1}')
                     
                     # 학습률 확인 및 출력
                     if args.verbose:
@@ -240,7 +289,7 @@ def main(args):
         if args.verbose:
             print(f'Load model state at best epoch loss [{best_epoch_idx}]')
         model.load_state_dict(best_model_state)
-        visualize_epoch_loss(pilot=False, epoch_loss=epoch_loss_rec, file_path=loss_file_path)
+        visualize_epoch_loss(pilot=False, epoch_loss=epoch_loss_rec, path=loss_file_path)
     
     # Evaluation
     model.eval()
@@ -262,9 +311,22 @@ def main(args):
     accuracy = 100 * correct / total
     print(f'Accuracy: {accuracy:.2f}%')
     
-    visualize_confusion_matrix(pilot=False, all_labels=all_labels, all_predictions=all_predictions, num_label=2, noise_type=args.noise_type, accuracy=accuracy, file_path=accuracy_file_path)
+    visualize_confusion_matrix(pilot=False, all_labels=all_labels, all_predictions=all_predictions, num_classes=2, path=accuracy_file_path)
 
-    precisions, recalls, f1_scores = get_classification_metrics(all_labels, all_predictions, None)
+    accuracies, precisions, recalls, f1_scores = get_classification_metrics(all_labels, all_predictions)
+    print(f'new Accuracy: {accuracies*100:.2f}%')
+
+    accuracy_summary_record = {'xid': xid,
+                               'accuracy': accuracy,
+                               'dataset_type': args.dataset_type,
+                               'noise_type': args.noise_type,
+                               'intensity_threshold': args.intensity_threshold,
+                               'margin': args.margin,
+                               'sigma_reduction': args.sigma_reduction,
+                               'label_balance': args.label_balance,
+                               'memo': args.memo,
+                              }
+    save_record_to_csv(accuracy_summary_csv_file_path, accuracy_summary_record)
 
     for class_idx, precision, recall, f1_score in zip(list(range(2)), precisions, recalls, f1_scores):
         accuracy_record = {'class': class_idx,
@@ -354,6 +416,7 @@ if __name__ == "__main__":
     loss_file_path = f'{args.output_path_loss}/{xid:03d}_{exp_no}_loss_{args.dataset_type}_{args.noise_type}_{current_time}.png'
     accuracy_file_path = f'{args.output_path_accuracy}/{xid:03d}_{exp_no}_accuarcy_{args.dataset_type}_{args.noise_type}_{current_time}.png'
     accuracy_csv_file_path = args.output_path_accuracy + f'{exp_no}_accuracy.csv'
+    accuracy_summary_csv_file_path = args.output_path_accuracy + f'{exp_no}_accuracy_summary.csv'
 
     # Sanity check: Print meta data
     if args.verbose:
