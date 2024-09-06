@@ -34,6 +34,7 @@ import snntorch as snn
 from snntorch import spikeplot as splt
 from snntorch import spikegen
 from snntorch import surrogate
+from snntorch import utils
 import snntorch.functional as SF
 
 # Utilities
@@ -64,24 +65,107 @@ from model.learning_utility import *
 '''
 START of synthesization
 '''
-class SimpleDataset(Dataset):
-    def __init__(self, data_loader, device):
-        self.x=[]
-        self.y=[]
+def calculate_psnr_torch(image1, image2):
+    """
+    Calculate PSNR using PyTorch tensors.
+    """
+    mse = torch.mean((image1 - image2) ** 2)
+    if mse == 0:
+        return float('inf')
+    max_pixel = 1.0  # Assuming image is normalized to [0, 1]
+    psnr = 20 * torch.log10(max_pixel / torch.sqrt(mse))
+    return psnr.item()
 
-        for image, label in data_loader:
-            image, label = image.to(device), label.to(device)
-            image, label = image.squeeze(0), label.squeeze(0)
-            self.x.append(image)
-            self.y.append(label)
+def add_gaussian_noise_torch(image, mean=0.0, std=1.0):
+    """
+    Add Gaussian noise to a PyTorch tensor image.
+    """
+    gaussian_noise = torch.randn_like(image) * std + mean
+    noisy_image = image + gaussian_noise
+    return torch.clamp(noisy_image, 0.0, 1.0)
 
-    def __len__(self):
-        return len(self.x)
+def add_salt_and_pepper_noise_torch(image, amount=0.05, salt_vs_pepper=0.5):
+    """
+    Add salt and pepper noise to a PyTorch tensor image.
+    """
+    noisy_image = image.clone()
+    
+    num_salt = torch.ceil(torch.tensor(amount * image.numel() * salt_vs_pepper)).int()
+    num_pepper = torch.ceil(torch.tensor(amount * image.numel() * (1.0 - salt_vs_pepper))).int()
 
-    def __getitem__(self, idx):
-        x_data = self.x[idx]
-        y_data = self.y[idx]
-        return x_data, y_data
+    # Add salt noise (white pixels)
+    indices = torch.randperm(image.numel(), device=image.device)[:num_salt]
+    noisy_image.view(-1)[indices] = 1
+
+    # Add pepper noise (black pixels)
+    indices = torch.randperm(image.numel(), device=image.device)[:num_pepper]
+    noisy_image.view(-1)[indices] = 0
+
+    return noisy_image
+
+def add_uniform_noise_torch(image, low=-0.1, high=0.1):
+    """
+    Add uniform noise to a PyTorch tensor image.
+    """
+    # Adjust 'low' and 'high' to be within the [0, 1] range
+    low = max(low, -image.min().item())
+    high = min(high, 1 - image.max().item())
+    
+    uniform_noise = torch.empty_like(image).uniform_(low, high)
+    noisy_image = image + uniform_noise
+    return torch.clamp(noisy_image, 0.0, 1.0)
+
+def add_poisson_noise_torch(image):
+    """
+    Add Poisson noise to a PyTorch tensor image.
+    """
+    noisy_image = torch.poisson(image * 255) / 255.0
+    return torch.clamp(noisy_image, 0.0, 1.0)
+
+def adjust_combined_noise_to_psnr_torch(image, target_psnr=30, tolerance=0.5):
+    """
+    Adjusts the combined noise level to achieve a target PSNR for the image using iterative adjustment.
+    
+    Args:
+    - image (torch.Tensor): Input image tensor with values in range [0, 1].
+    - target_psnr (float): Target PSNR value for the combined noise image.
+    - tolerance (float): Acceptable deviation from the target PSNR.
+    
+    Returns:
+    - noisy_image_combined (torch.Tensor): Image with combined noises adjusted to target PSNR.
+    """
+    std_gaussian = 0.0
+    amount_sp = 0.0
+    high_uniform = 0.0
+
+    current_psnr = float('inf')
+
+    while current_psnr > target_psnr + tolerance:
+        # Gradually increase noise levels to reduce PSNR
+        std_gaussian += 0.1
+        amount_sp += 0.1
+        high_uniform += 0.1
+
+        # Apply combined noise
+        noisy_image_combined = (
+            add_gaussian_noise_torch(image, std=std_gaussian) + 
+            add_salt_and_pepper_noise_torch(image, amount=amount_sp) + 
+            add_uniform_noise_torch(image, low=-high_uniform, high=high_uniform) + 
+            add_poisson_noise_torch(image)
+        ) / 4
+        
+        current_psnr = calculate_psnr_torch(image, noisy_image_combined)
+        print(f"PSNR: {current_psnr:.2f} dB, std_gaussian: {std_gaussian:.2f}, amount_sp: {amount_sp:.2f}, high_uniform: {high_uniform:.2f}")
+
+    return noisy_image_combined
+
+def get_combined_noised_image(image, intensity):
+    return (
+            add_gaussian_noise_torch(image, std=intensity) + 
+            add_salt_and_pepper_noise_torch(image, amount=intensity) + 
+            add_uniform_noise_torch(image, low=-intensity, high=intensity) + 
+            add_poisson_noise_torch(image)
+            ) / 4
 
 class SpecificallyNoisedDataset(Dataset):
     def __init__(self, data_loader, device, noise_type='gaussian', intensity=0.5):
@@ -91,7 +175,10 @@ class SpecificallyNoisedDataset(Dataset):
         for image, label in data_loader:
             image, label = image.to(device), label.to(device)
             image, label = image.squeeze(0), label.squeeze(0)
-            self.x.append(generate_noisy_data(data=image, intensity=intensity, noise_type=noise_type, rescale=True, normalize=True, device=device))
+            #noisy_image = adjust_combined_noise_to_psnr_torch(image, target_psnr=15)
+            noisy_image = get_combined_noised_image(image, 0.7)
+            self.x.append(noisy_image)
+            #self.x.append(generate_noisy_data(data=image, intensity=intensity, noise_type=noise_type, rescale=True, normalize=True, device=device))
             self.y.append(label)
 
     def __len__(self):
@@ -121,13 +208,13 @@ class CNV_SNN(nn.Module):
         
         # snntorch의 Leaky Integrate and Fire (LIF) 뉴런을 사용
         if args.loss_function is None:
-            self.lif1 = snn.Leaky(beta=0.9)
-            self.lif2 = snn.Leaky(beta=0.9)
-            self.lif3 = snn.Leaky(beta=0.9)
+            self.lif1 = snn.Leaky(beta=0.9, init_hidden=True)
+            self.lif2 = snn.Leaky(beta=0.9, init_hidden=True)
+            self.lif3 = snn.Leaky(beta=0.9, init_hidden=True)
         else:
-            self.lif1 = snn.Leaky(beta=0.9, spike_grad=surrogate.fast_sigmoid())
-            self.lif2 = snn.Leaky(beta=0.9, spike_grad=surrogate.fast_sigmoid())
-            self.lif3 = snn.Leaky(beta=0.9, spike_grad=surrogate.fast_sigmoid())
+            self.lif1 = snn.Leaky(beta=0.9, spike_grad=surrogate.fast_sigmoid(), init_hidden=True)
+            self.lif2 = snn.Leaky(beta=0.9, spike_grad=surrogate.fast_sigmoid(), init_hidden=True)
+            self.lif3 = snn.Leaky(beta=0.9, spike_grad=surrogate.fast_sigmoid(), init_hidden=True)
     
     def forward(self, x, encoding):
         # 결과를 누적하기 위한 텐서 초기화 / (might be) encoded input => x.size(0) is prohibited
@@ -135,6 +222,36 @@ class CNV_SNN(nn.Module):
         if args.loss_function is None:
             outputs = torch.zeros(x.size(1), 10, device=x.device)
 
+        spk3_rec = []
+
+        if encoding == 'latency':
+            for step in range(args.num_steps):
+                spk1 = self.lif1(self.conv1(x[step]))
+                spk2 = self.lif2(self.conv2(spk1))
+                spk2 = spk2.view(spk2.size(0), -1)
+                spk3 = self.lif3(self.fc1(spk2))
+                spk3_rec.append(spk3)
+                if spk3.any():
+                    for _ in range(args.num_steps - step - 1):
+                        spk3_rec.append(torch.zeros_like(spk3))
+                    break
+
+        else:
+            for step in range(args.num_steps):
+                spk1 = self.lif1(self.conv1(x[step]))
+                spk2 = self.lif2(self.conv2(spk1))
+                spk2 = spk2.view(spk2.size(0), -1)
+                spk3 = self.lif3(self.fc1(spk2))
+                spk3_rec.append(spk3)
+
+        # for pytorch loss function
+        if args.loss_function is None:
+            outputs = torch.stack(spk3_rec, dim=1).sum(dim=1)  # 타임 스텝 차원을 합쳐서 최종 출력 계산
+        else:
+            outputs = torch.stack(spk3_rec)
+            
+        return outputs
+"""
         mem1 = self.lif1.init_leaky()
         mem2 = self.lif2.init_leaky()
         mem3 = self.lif3.init_leaky()
@@ -168,8 +285,47 @@ class CNV_SNN(nn.Module):
             outputs = torch.stack(spk3_rec)
             
         return outputs
+"""
 '''
 END of model
+'''
+
+'''
+START of visualization
+'''
+def visualize_sample(pilot: bool, loader, path: str=None):
+    # Unzip sample_batch to 10 samples
+    x, y = next(iter(loader)) # Assume x: [n, 64, 1, 28, 28] -> [64, 1, 28, 28] after indexing
+    
+    # Select 10 samples
+    samples = [(x[i], y[i]) for i in range(10)] # [64, 1, 28, 28] -> 10 * [1, 28, 28]
+    
+    # Create a 2 x 5 grid for images
+    fig, axes = plt.subplots(2, 5, figsize=(12, 6))
+
+    for i, ax in enumerate(axes.flat):
+        image = samples[i][0]
+        
+        # Convert tensor to numpy if needed
+        if hasattr(image, 'numpy'):
+            image = image.cpu().numpy()
+        
+        # If the image is a tensor from PyTorch, it will have a shape of [C, H, W].
+        # Use permute to change this to [H, W, C] for matplotlib.
+        if image.ndim == 3:
+            image = np.transpose(image, (1, 2, 0))  # convert from [C, H, W] to [H, W, C]
+
+        ax.imshow(image.squeeze(), cmap='gray')
+        ax.axis('off')
+        ax.set_title(f"Label:{samples[i][1].item() if hasattr(samples[i][1], 'item') else samples[i][1]}")
+
+    if pilot:
+        plt.show()
+    else:
+        plt.tight_layout()
+        plt.savefig(path)
+'''
+END of visualization
 '''
 
 
@@ -224,19 +380,27 @@ def main(args):
     # Modify proportion of the dataset
     # On train dataset
     if( args.pretrained is None ):
+        if args.verbose is True:
+            print("train data is on way")
         train_dataset = get_single_subset_by_ratio(train_dataset, args.train_dataset_ratio)
         train_loader = DataLoader(dataset=train_dataset, batch_size=1, shuffle=False, drop_last=True)
         #modified_train_dataset = SpecificallyNoisedDataset(train_loader, device, args.noise_type, args.intensity)
         modified_train_dataset = train_dataset
         modified_train_loader = DataLoader(dataset=modified_train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
+        if args.verbose is True:
+            print("train data is now ready")
     # On test dataset 
+    if args.verbose is True:
+        print("test data is on way")
     test_dataset = get_single_subset_by_ratio(test_dataset, args.test_dataset_ratio)
     test_loader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, drop_last=True)
     modified_test_dataset = SpecificallyNoisedDataset(test_loader, device, args.noise_type, args.intensity)
-    modified_test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, drop_last=True)
+    modified_test_loader = DataLoader(dataset=modified_test_dataset, batch_size=args.batch_size, shuffle=False, drop_last=True)
+    if args.verbose is True:
+        print("test data is now ready")
     
     # Sanity check
-    visualize_noisy_sample(pilot=False, loader=modified_test_loader, path=image_file_path)
+    visualize_sample(pilot=False, loader=modified_test_loader, path=image_file_path)
 
     epoch_loss_rec = []
     max_epoch_loss = math.inf
@@ -263,6 +427,9 @@ def main(args):
 
                 # 옵티마이저 초기화
                 optimizer.zero_grad()
+
+                # Reset hidden states
+                utils.reset(model)
 
                 # 순전파
                 match args.encode:
@@ -305,6 +472,7 @@ def main(args):
                     last_lr = str(scheduler.get_last_lr()[0])
                     with open(meta_file_path, 'a') as file:
                         file.write(f'\nlearning rate changed to {last_lr} at Epoch {epoch + 1}')
+                    print(f'\nlearning rate changed to {last_lr} at Epoch {epoch + 1}')
                 
                 # 학습률 확인 및 출력
                 if args.verbose:
@@ -330,6 +498,7 @@ def main(args):
         visualize_epoch_loss(pilot=False, epoch_loss=epoch_loss_rec, path=loss_file_path)
 
     # Evaluation
+    eval_time = time.time()
     model.eval()
     all_labels = []
     all_predictions = []
@@ -356,6 +525,7 @@ def main(args):
             else:
                 all_labels.extend(labels.cpu().numpy())
                 all_predictions.extend(output.sum(dim=0).argmax(dim=1).cpu().numpy())
+    eval_time = time.time() - eval_time
     
     visualize_confusion_matrix(pilot=False, all_labels=all_labels, all_predictions=all_predictions, num_classes=10, path=accuracy_file_path)
 
@@ -368,7 +538,8 @@ def main(args):
                                'noise_type': args.noise_type,
                                'encode': args.encode,
                                'memo': args.memo,
-                               'intensity': args.intensity
+                               'intensity': args.intensity,
+                               'time': eval_time
                               }
     save_record_to_csv(accuracy_summary_csv_file_path, accuracy_summary_record)
 

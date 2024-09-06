@@ -7,8 +7,8 @@
 
 noise=("gaussian" "snp" "uniform" "poisson")
 encoding=(
-"--encode rate --num_steps 10 --memo improved"
-"--encode latency --num_steps 10 --memo improved"
+"--encode rate --num_steps 10 --loss_function ce_count_loss() --memo improved_count"
+"--encode latency --num_steps 10 --loss_function ce_max_membrane_loss() --memo improved_membrane"
 )
 
 # 에포크 수를 지정합니다.
