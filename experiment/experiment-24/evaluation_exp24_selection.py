@@ -211,18 +211,24 @@ class CNV_SNN(nn.Module):
     def __init__(self, snn_loss_function, time_steps):
         super(CNV_SNN, self).__init__()
         
-        # Convolutional Layers
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=5)  # [16, 24, 24]
-        #self.bn1 = BatchNormTT2d(16, time_steps=time_steps)  # BatchNorm 추가
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=5)  # [32, 20, 20]
-        #self.bn2 = BatchNormTT2d(32, time_steps=time_steps)  # BatchNorm 추가
-        self.fc1 = nn.Linear(32 * 20 * 20, 10)  # Fully connected layer
-        
-        # Leaky Integrate-and-Fire Neurons
         spike_grad = surrogate.fast_sigmoid() if snn_loss_function else None
+        
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=5)  # [16, 24, 24]
+        self.bn1 = BatchNormTT2d(16, time_steps=time_steps)
         self.lif1 = snn.Leaky(beta=0.9, spike_grad=spike_grad)
+        self.pool1 = nn.MaxPool2d(2)
+
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=5)  # [32, 20, 20]
+        self.bn2 = BatchNormTT2d(32, time_steps=time_steps)
         self.lif2 = snn.Leaky(beta=0.9, spike_grad=spike_grad)
-        self.lif3 = snn.Leaky(beta=0.9, spike_grad=spike_grad, output=True)
+        self.pool2 = nn.MaxPool2d(2)
+
+        self.flatten = nn.Flatten()
+        if 'maxpool' in args.layer:
+            self.fc1 = nn.Linear(32 * 4 * 4, 10)
+        else:
+            self.fc1 = nn.Linear(32 * 20 * 20, 10)
+        self.lif3 = snn.Leaky(beta=0.9, spike_grad=spike_grad)
     
     def forward(self, x, encode, num_steps, snn_loss_function=False):
         # 결과를 누적하기 위한 텐서 초기화 / (might be) encoded input => x.size(0) is prohibited
@@ -236,36 +242,74 @@ class CNV_SNN(nn.Module):
         
         spk3_rec = []
         if encode == 'latency':
+            first_spike_found = False  # 첫 번째 스파이크 여부
+            mask = torch.ones(x.size(1), 10, device=x.device)  # 마스크 초기화 (모든 뉴런 활성화)
+
             for step in range(num_steps):
                 # 각 타임스텝마다 BatchNormTT2d 적용
                 x_step = self.conv1(x[step])
-                #x_step = self.bn1[step](x_step)  # ModuleList에서 개별 모듈 호출
+                if 'batchnorm' in args.layer:
+                    x_step = self.bn1[step](x_step)  # ModuleList에서 개별 모듈 호출
+                #spk1 = self.lif1(x_step)
+                #print(spk1.shape)
                 spk1, mem1 = self.lif1(x_step, mem1)
+                if 'maxpool' in args.layer:
+                    spk1 = self.pool1(spk1)
+                #print(spk1.shape)
                 
                 x_step = self.conv2(spk1)
-                #x_step = self.bn2[step](x_step)  # ModuleList에서 개별 모듈 호출
-                spk2, mem2 = self.lif2(x_step, mem2)
+                if 'batchnorm' in args.layer:
+                    x_step = self.bn2[step](x_step)  # ModuleList에서 개별 모듈 호출
+                #spk2 = self.lif2(x_step)
+                #print(spk2.shape)
+                spk2, mem2 = self.lif1(x_step, mem2)
+                if 'maxpool' in args.layer:
+                    spk2 = self.pool2(spk2)
+                #print(spk2.shape)
 
-                spk2 = spk2.view(spk2.size(0), -1)
+                #spk2 = spk2.view(spk2.size(0), -1)
+                spk2 = self.flatten(spk2)
+                #spk3 = self.lif3(self.fc1(spk2))
                 spk3, mem3 = self.lif3(self.fc1(spk2), mem3)
+
+                #if first_spike_found:
+                #    spk3 = spk3 * mask  # 첫 스파이크 이후 마스킹 적용
+                #elif spk3.any():
+                #    first_spike_found = True  # 첫 번째 스파이크 발생 시점 기록
+                #    mask = torch.zeros_like(spk3)  # 남은 타임스텝 마스크 0으로 설정 (스파이크 억제)
+
                 spk3_rec.append(spk3)
-                if spk3.any():
-                    for _ in range(num_steps - step - 1):
-                        spk3_rec.append(torch.zeros_like(spk3))
-                    break
+                #if spk3.any():
+                #    for _ in range(num_steps - step - 1):
+                #        spk3_rec.append(torch.zeros_like(spk3))
+                #    break
 
         else:
             for step in range(num_steps):
                 # 각 타임스텝마다 BatchNormTT2d 적용
                 x_step = self.conv1(x[step])
-                #x_step = self.bn1[step](x_step)  # ModuleList에서 개별 모듈 호출
+                if 'batchnorm' in args.layer:
+                    x_step = self.bn1[step](x_step)  # ModuleList에서 개별 모듈 호출
+                #spk1 = self.lif1(x_step)
+                #print(spk1.shape)
                 spk1, mem1 = self.lif1(x_step, mem1)
+                if 'maxpool' in args.layer:
+                    spk1 = self.pool1(spk1)
+                #print(spk1.shape)
                 
                 x_step = self.conv2(spk1)
-                #x_step = self.bn2[step](x_step)  # ModuleList에서 개별 모듈 호출
-                spk2, mem2 = self.lif2(x_step, mem2)
+                if 'batchnorm' in args.layer:
+                    x_step = self.bn2[step](x_step)  # ModuleList에서 개별 모듈 호출
+                #spk2 = self.lif2(x_step)
+                #print(spk2.shape)
+                spk2, mem2 = self.lif1(x_step, mem2)
+                if 'maxpool' in args.layer:
+                    spk2 = self.pool2(spk2)
+                #print(spk2.shape)
 
-                spk2 = spk2.view(spk2.size(0), -1)
+                #spk2 = spk2.view(spk2.size(0), -1)
+                spk2 = self.flatten(spk2)
+                #spk3 = self.lif3(self.fc1(spk2))
                 spk3, mem3 = self.lif3(self.fc1(spk2), mem3)
                 spk3_rec.append(spk3)
 
@@ -370,6 +414,8 @@ def snn_training_loop(args, paths, encode, model, train_loader, device, schedule
         last_lr = scheduler.get_last_lr()[0]
         model.train() #change model's mode to train
         running_loss = 0.0
+        current_step = 0
+        current_size = 0
         for inputs, labels in train_loader:
             inputs, labels = inputs.to(device), labels.to(device)
             
@@ -377,14 +423,11 @@ def snn_training_loop(args, paths, encode, model, train_loader, device, schedule
             optimizer.zero_grad()
             
             # 순전파
-            #print(f"{encode} Original inputs shape before: {inputs.shape}")
             match encode:
                 case 'rate':
                     inputs = spikegen.rate(inputs, num_steps=args.steps)
                 case 'latency':
                     inputs = spikegen.latency(inputs, tau=0.1, num_steps=args.steps)
-            #print(f"{encode} Original inputs shape after: {inputs.shape}")
-            #inputs = inputs.view(args.steps, inputs.size(0), inputs.size(1), inputs.size(2), inputs.size(3))
             outputs = model(inputs, encode, args.steps, args.enable_snn_loss_function)
             
             # 손실 계산
@@ -397,6 +440,11 @@ def snn_training_loop(args, paths, encode, model, train_loader, device, schedule
             optimizer.step()
             
             running_loss += loss.item()
+            current_step += 1
+            current_size += inputs.size(0)
+
+            if(current_step % 20 == 0):
+                print(f'Epoch: {epoch}/{args.epoch} | Inputs: {current_size}/{len(train_loader.dataset)} | Batch Loss: {running_loss/current_size:.4f}')
         
         epoch_loss = running_loss / len(train_loader.dataset)
         
@@ -480,7 +528,7 @@ def snn_train_pipeline(args, paths, device, encode, train_loader, test_loader):
     model = model.to(device)
     if args.enable_snn_loss_function:
         if encode == 'latency':
-            criterion = SF.ce_max_membrane_loss()
+            criterion = SF.ce_temporal_loss()
         else:
             criterion = SF.ce_count_loss()
     else:
@@ -621,28 +669,16 @@ def cnn_train_pipeline(args, paths, device, train_loader, test_loader):
     cnn_evaluation(args, paths, model, test_loader, device)
 
     return model
-'''
-def relabel_list_or_not(rate_model, latency_model, encoding_A, encoding_B, device, loader=None, loader_list=None):
-    if loader is None and loader_list is None:
-        raise CustomError("No loader or loader list")
-    elif loader is not None:
-        return relabel_based_on_evaluation(loader, rate_model, latency_model, encoding_A, encoding_B, device)
-    elif loader_list is not None:
-        return 
-'''
-# Define a function to evaluate each model on each dataset and relabel with the model index (0 or 1)
-def relabel_based_on_evaluation(args, ref_splited_loader_list, loader_list, rate_model, latency_model, device):
 
+# Define a function to evaluate each model on each dataset and relabel with the model index (0 or 1)
+def relabel_based_on_snn(args, ref_splited_loader_list, loader_list, rate_model, latency_model, device):
     append_only = -1
     total_label_count = [0, 0]
     model_label_list = []  # List to store model indices (0 or 1) as new labels
     data_list = []
     hard_noise_idx=0
-
     while True:
-        print(f"Attempt : {append_only} / total_label_count: [{total_label_count[0]},{total_label_count[1]}]")
-        #label_count = [0, 0]
-        
+        print_verbose(args.verbose, f"Attempt : {append_only} / total_label_count: [{total_label_count[0]},{total_label_count[1]}]")
         for loader in loader_list:
             rate_model.eval()
             latency_model.eval()
@@ -658,40 +694,24 @@ def relabel_based_on_evaluation(args, ref_splited_loader_list, loader_list, rate
                     intensity = {key: f"{value.item():.2f}" for key, value in meta.items()}
                     # Move data and target to the specified device (GPU or CPU)
                     data, target = data.to(device), target.to(device)
-                    
-                    # Check the shapes here
-                    #print(f"Original data shape: {data.shape}, Original target shape: {target.shape}")
-                    
                     data, target = data.squeeze(0), target.squeeze(0)
-                    #data = data.squeeze(0)  # This might be modifying the batch size, be careful
-                    #target = target.squeeze(0)  # Same here
 
-                    # Check shapes again after squeezing
-                    #print(f"Squeezed data shape: {data.shape}, Squeezed target shape: {target.shape}")
-                    
                     # Store data for relabeling
                     data_list.append(data)
                     
                     # Rate Model predictions and accuracy
-                    # 모델에 데이터 전달
-                    #print(data.shape)
                     rate_input = spikegen.rate(data, num_steps=args.steps)
-                    #print(rate_input.shape)
-                    #rate_input = rate_input.view(args.steps, rate_input.size(0), rate_input.size(1), rate_input.size(2), rate_input.size(3))
                     rate_output = rate_model(rate_input, 'rate', args.steps, args.enable_snn_loss_function)
                     if args.enable_snn_loss_function:
-                        #rate_predicted = rate_output.argmax(dim=1)
                         rate_predicted = rate_output.sum(dim=0).argmax(dim=1)
                     else:
                         _, rate_predicted = torch.max(rate_output.data, 1)
                     rate_model_correct += (rate_predicted == target).sum().item()
                     
-                    # Model B predictions and accuracy
+                    # Latency model predictions and accuracy
                     latency_input = spikegen.latency(data, tau=0.1, num_steps=args.steps)
-                    #latency_input = latency_input.view(args.steps, rate_input.size(0), rate_input.size(1), rate_input.size(2), rate_input.size(3))
                     latency_output = latency_model(latency_input, 'latency', args.steps, args.enable_snn_loss_function)
                     if args.enable_snn_loss_function:
-                        #latency_predicted = latency_output.argmax(dim=1)
                         latency_predicted = latency_output.sum(dim=0).argmax(dim=1)
                     else:
                         _, latency_predicted = torch.max(latency_output.data, 1)
@@ -772,7 +792,6 @@ END of synthesization
 '''
 """
 import torch.multiprocessing as mp
-#import multiprocessing
 
 def train_rate_model(args, paths, device, snn_train_loader, snn_test_loader, shared_dict):
     try:
@@ -830,7 +849,7 @@ class Exp24RensArgumentParser(RensArgumentParser):
         self.parser.add_argument('--pretrained_latency', type=str, default=None, help="Pretrained latency encoding weights path (Default: None)")
         self.parser.add_argument('--pretrained_cnn', type=str, default=None, help="Pretrained cnn weights path (Default: None)")
         self.parser.add_argument('--identical_intensity', action='store_true', default=False, help="Apply identical intensity at noise add. (Default: False)")
-        
+        self.parser.add_argument('--layer', nargs='*', default=[], choices=['batchnorm', 'maxpool'], help="Apply each layer (Default: None)")
 
 def print_verbose(verbose, sentence):
     if verbose:
@@ -955,16 +974,6 @@ def main(args, paths):
     rate_model = shared_dict['rate_model']
     latency_model = shared_dict['latency_model']
     '''
-    if args.pretrained_rate is not None:
-        rate_model = CNV_SNN(args.enable_snn_loss_function, args.steps)
-        rate_model.load_state_dict(torch.load(args.pretrained_rate))
-        rate_model = rate_model.to(device)
-        if args.verbose:
-            print("Rate encoding model is given, no train needed. Load weight and move onto next step.")
-            print("###Sanity Check###")
-            snn_evaluation(args, paths, 'rate', rate_model, snn_test_loader, device)
-    else:
-        rate_model = snn_train_pipeline(args, paths, device, 'rate', snn_train_loader, snn_test_loader)
     if args.pretrained_latency is not None:
         latency_model = CNV_SNN(args.enable_snn_loss_function, args.steps)
         latency_model.load_state_dict(torch.load(args.pretrained_latency))
@@ -975,6 +984,16 @@ def main(args, paths):
             snn_evaluation(args, paths, 'latency', latency_model, snn_test_loader, device)
     else:
         latency_model = snn_train_pipeline(args, paths, device, 'latency', snn_train_loader, snn_test_loader)
+    if args.pretrained_rate is not None:
+        rate_model = CNV_SNN(args.enable_snn_loss_function, args.steps)
+        rate_model.load_state_dict(torch.load(args.pretrained_rate))
+        rate_model = rate_model.to(device)
+        if args.verbose:
+            print("Rate encoding model is given, no train needed. Load weight and move onto next step.")
+            print("###Sanity Check###")
+            snn_evaluation(args, paths, 'rate', rate_model, snn_test_loader, device)
+    else:
+        rate_model = snn_train_pipeline(args, paths, device, 'rate', snn_train_loader, snn_test_loader)
 
     print_verbose(args.verbose, "END")
 
@@ -983,9 +1002,9 @@ def main(args, paths):
     if args.pretrained_cnn is not None:
         print_verbose(args.verbose, "No need CNN train dataset. Move to CNN test dataset.")
     else:
-        labeled_train_dataset = relabel_based_on_evaluation(args, snn_splited_train_loader_list, snn_modified_train_loader_list, rate_model, latency_model, device)
+        labeled_train_dataset = relabel_based_on_snn(args, snn_splited_train_loader_list, snn_modified_train_loader_list, rate_model, latency_model, device)
         labeled_train_loader = DataLoader(dataset=labeled_train_dataset, batch_size=args.batch_size, shuffle=True)
-    labeled_test_dataset = relabel_based_on_evaluation(args, snn_splited_test_loader_list, snn_modified_test_loader_list, rate_model, latency_model, device)
+    labeled_test_dataset = relabel_based_on_snn(args, snn_splited_test_loader_list, snn_modified_test_loader_list, rate_model, latency_model, device)
     labeled_test_loader = DataLoader(dataset=labeled_test_dataset, batch_size=args.batch_size, shuffle=True)
     print_verbose(args.verbose, "END")
 
@@ -1003,7 +1022,20 @@ def main(args, paths):
     else:
         cnn_model = cnn_train_pipeline(args, paths, device, labeled_train_loader, labeled_test_loader)
     print_verbose(args.verbose, "END")
-   
+'''
+    ## 4. Run CNN
+    print_verbose(args.verbose, "4. Run CNN is on way")
+    
+    cnn_splited_train_dataset_list = get_multiple_subsets_by_size(dataset=train_dataset, subset_size=args.batch_size, drop_last=True)
+    cnn_splited_train_loader_list = [DataLoader(dataset=batch, batch_size=args.batch_size, shuffle=False) for batch in cnn_splited_train_dataset_list]
+    cnn_modified_train_dataset_list = [RandomlyNoisedDataset(batch, args.identical_intensity, device) for batch in cnn_splited_train_loader_list]
+    cnn_modified_train_loader_list = [DataLoader(dataset=batch, batch_size=args.batch_size, shuffle=True) for batch in cnn_modified_train_dataset_list]
+    
+    cnn_splited_test_dataset_list = get_multiple_subsets_by_size(dataset=test_dataset, subset_size=args.batch_size, drop_last=True)
+    cnn_splited_test_loader_list = [DataLoader(dataset=batch, batch_size=args.batch_size, shuffle=False) for batch in cnn_splited_test_dataset_list]
+    cnn_modified_test_dataset_list = [RandomlyNoisedDataset(batch, args.identical_intensity, device) for batch in cnn_splited_test_loader_list]
+    cnn_modified_test_loader_list = [DataLoader(dataset=batch, batch_size=args.batch_size, shuffle=True) for batch in cnn_modified_test_dataset_list]
+'''
 if __name__ == "__main__":
     parser = Exp24RensArgumentParser()
     args = parser.get_argument_parser()
