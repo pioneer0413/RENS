@@ -29,7 +29,7 @@ datasets=("cifar10")
 noise_types=("gaussian" "snp" "uniform" "poisson")
 
 # 0으로 분류할 비율을 지정합니다.
-intensity_threshold=("0.7" "0.8" "0.9")
+intensity_threshold=("0.6" "0.7" "0.8" "0.9")
 
 # trim 비율을 지정합니다.
 margins=("0.025" "0.05" "0.075")
