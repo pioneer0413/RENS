@@ -18,6 +18,7 @@ Last author: hwkang
 from torch.utils.data import Dataset, Subset, random_split
 from torchvision import datasets
 import tonic
+import random
 
 
 """
@@ -79,12 +80,18 @@ Purpose: 기존 데이터셋에서 크기에 맞게 일부를 추출
 Parameters: 
     - dataset (Dataset): 추출될 기존 데이터셋
     - target_size (int): 추출할 크기
+    - randomize (bool): 랜덤 추출 여부
 Returns:
     - subset (Dataset): 부분 데이터셋
-Last update: 2024-08-29 16:32 Thu.
-Last author: mwkim
+Last update: 2024-09-18 16:19 Wed.
+Last author: hwkang
 """
-def get_single_subset_by_size(dataset: Dataset, target_size: int) -> Dataset:
+def get_single_subset_by_size(dataset: Dataset, target_size: int, randomize: bool=False) -> Dataset:
+    if randomize:
+        dataset_size = len(dataset)
+        indices = random.sample(range(dataset_size), target_size)
+        return Subset(dataset, indices)
+    
     return Subset(dataset, list(range(target_size)))
 
 
@@ -132,45 +139,72 @@ def get_multiple_subsets_by_size(dataset: Dataset, subset_size: int, drop_last: 
 
 
 """
+Purpose: 데이터셋 [0.0, 1.0] 정규화 클래스
+Attributes: None
+Methods: 
+    - __call__: 정규화 수행
+Last update: 2024-08-29 17:14 Thu.
+Last author: hwkang
+"""
+class NormalizeTensor:
+    def __init__(self):
+        pass
+    def __call__(self, data):
+        vmax, vmin = data.max(), data.min()
+        return (data-vmin)/(vmax-vmin)
+
+
+"""
 Purpose: 빈용 데이터셋 생성 관련 보일러 플레이트 코드 예방
 Attributes: 
     - dataset_type (string): 데이터셋 종류
-    - transform (torchvision.transforms): 전처리 
     - path (string): 저장 또는 불러올 경로
     - download (bool): 다운로드 활성화 여부
 Methods: 
     - get_dataset: 인스턴스 생성 시 지정된 데이터셋을 반환    
-Last update: 2024-08-30 10:34 Fri.
+Last update: 2024-09-18 16:20 Wed.
 Last author: hwkang
 """
 class RensDataset:
-    def __init__(self, dataset_type: str='cifar10', transform=None, path: str=None, download: bool=False):
+    def __init__(self, dataset_type: str='cifar10', path: str=None, download: bool=False):
         self.dataset_type = dataset_type
-        self.transform = transform
         self.path = path
         self.download = download
         
-    def get_dataset(self):
+    def get_dataset(self, train=True, transform=None):
 
         def check_path_exist(dataset_type, path):
             if path is None:
                 raise ValueError(f'This dataset type({dataset_type}) should have specific path.')
 
-        match self.dataset_type:
-            case 'cifar10':
-                check_path_exist(self.dataset_type, self.path)
-                train_dataset = datasets.CIFAR10(transform=self.transform, root=self.path, download=self.download, train=True)
-                test_dataset = datasets.CIFAR10(transform=self.transform, root=self.path, download=self.download, train=False)
-            case 'cifar100':
-                check_path_exist(self.dataset_type, self.path)
-                train_dataset = datasets.CIFAR100(transform=self.transform, root=self.path, download=self.download, train=True)
-                test_dataset = datasets.CIFAR100(transform=self.transform, root=self.path, download=self.download, train=False)
-            case 'mnist':
-                check_path_exist(self.dataset_type, self.path)
-                train_dataset = datasets.MNIST(transform=self.transform, root=self.path, download=self.download, train=True)
-                test_dataset = datasets.MNIST(transform=self.transform, root=self.path, download=self.download, train=False)
-            case 'nmnist':
-                train_dataset = tonic.datasets.NMNIST(transform=self.transform, save_to=self.path, train=True)
-                test_dataset = tonic.datasets.NMNIST(transform=self.transform, save_to=self.path, train=False)
+        if train:
+            match self.dataset_type:
+                case 'cifar10':
+                    check_path_exist(self.dataset_type, self.path)
+                    train_dataset = datasets.CIFAR10(transform=transform, root=self.path, download=self.download, train=True)
+                case 'cifar100':
+                    check_path_exist(self.dataset_type, self.path)
+                    train_dataset = datasets.CIFAR100(transform=transform, root=self.path, download=self.download, train=True)
+                case 'mnist':
+                    check_path_exist(self.dataset_type, self.path)
+                    train_dataset = datasets.MNIST(transform=transform, root=self.path, download=self.download, train=True)
+                case 'nmnist':
+                    train_dataset = tonic.datasets.NMNIST(transform=transform, save_to=self.path, train=True)
+        else:
+            match self.dataset_type:
+                case 'cifar10':
+                    check_path_exist(self.dataset_type, self.path)
+                    test_dataset = datasets.CIFAR10(transform=transform, root=self.path, download=self.download, train=False)
+                case 'cifar100':
+                    check_path_exist(self.dataset_type, self.path)
+                    test_dataset = datasets.CIFAR100(transform=transform, root=self.path, download=self.download, train=False)
+                case 'mnist':
+                    check_path_exist(self.dataset_type, self.path)
+                    test_dataset = datasets.MNIST(transform=transform, root=self.path, download=self.download, train=False)
+                case 'nmnist':
+                    test_dataset = tonic.datasets.NMNIST(transform=transform, save_to=self.path, train=False)
 
-        return train_dataset, test_dataset
+        if train:
+            return train_dataset
+        else:
+            return test_dataset

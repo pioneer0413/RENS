@@ -15,7 +15,6 @@ Last author: hwkang
 
 # Imports
 import os
-import argparse
 import json
 
 
